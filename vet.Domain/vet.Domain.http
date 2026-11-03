@@ -1,0 +1,6 @@
+@vet.Domain_HostAddress = http://localhost:5195
+
+GET {{vet.Domain_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
