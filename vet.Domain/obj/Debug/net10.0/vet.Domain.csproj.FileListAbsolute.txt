@@ -10,3 +10,15 @@ C:\Proyectos_code\.net\vet_api\vet.Domain\obj\Debug\net10.0\vet.Domain.dll
 C:\Proyectos_code\.net\vet_api\vet.Domain\obj\Debug\net10.0\refint\vet.Domain.dll
 C:\Proyectos_code\.net\vet_api\vet.Domain\obj\Debug\net10.0\vet.Domain.pdb
 C:\Proyectos_code\.net\vet_api\vet.Domain\obj\Debug\net10.0\ref\vet.Domain.dll
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\bin\Debug\net10.0\vet.Domain.deps.json
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\bin\Debug\net10.0\vet.Domain.dll
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\bin\Debug\net10.0\vet.Domain.pdb
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\vet.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\vet.Domain.AssemblyInfoInputs.cache
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\vet.Domain.AssemblyInfo.cs
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\vet.Domain.csproj.CoreCompileInputs.cache
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\vet.Domain.sourcelink.json
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\vet.Domain.dll
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\refint\vet.Domain.dll
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\vet.Domain.pdb
+C:\Users\USER\RiderProjects\Veterinaria_net\vet.Domain\obj\Debug\net10.0\ref\vet.Domain.dll
