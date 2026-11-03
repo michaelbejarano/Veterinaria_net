@@ -1,6 +1,0 @@
-@vet.Infrastructure_HostAddress = http://localhost:5177
-
-GET {{vet.Infrastructure_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

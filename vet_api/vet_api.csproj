@@ -17,7 +17,12 @@
 
     <ItemGroup>
       <ProjectReference Include="..\vet.Application\vet.Application.csproj" />
+      <ProjectReference Include="..\vet.Domain\vet.Domain.csproj" />
       <ProjectReference Include="..\vet.Infrastructure\vet.Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Controllers\" />
     </ItemGroup>
 
 </Project>
