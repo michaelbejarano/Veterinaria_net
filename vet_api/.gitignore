@@ -1,34 +1,12 @@
 # .NET
 **/bin/
 **/obj/
-.vs/
+
+# Rider
 .idea/
-.vscode/
+.vs/
 *.user
 *.suo
 
-# Secrets and environment
+# Variables de entorno
 .env
-.env.*
-!.env.example
-appsettings.Development.json
-appsettings.Local.json
-secrets.json
-
-# Certificates and keys
-*.pfx
-*.p12
-*.pem
-*.key
-*.crt
-*.cer
-
-# Database backups
-*.bak
-*.backup
-*.dump
-*.sql.gz
-
-# Logs
-logs/
-*.log
