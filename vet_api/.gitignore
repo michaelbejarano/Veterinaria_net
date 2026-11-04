@@ -1,12 +1,22 @@
+
 # .NET
 **/bin/
 **/obj/
 
-# Rider
-.idea/
+# Visual Studio
 .vs/
 *.user
 *.suo
 
+# JetBrains Rider
+.idea/
+*.sln.iml
+
 # Variables de entorno
 .env
+.env.*
+!.env.example
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
