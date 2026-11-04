@@ -1,9 +1,13 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using vet.Application.Services;
 using vet.Domain.Ports;
+using vet.Infrastructure.Adapters.Security;
 using vet.Infrastructure.Persistence;
 using vet.Infrastructure.Persistence.Repositories;
+
+
 
 namespace vet.Infrastructure.Configurate;
 
@@ -30,7 +34,10 @@ public static class InfrastructureServicesExtensions
 
         // Repositorios específicos
         services.AddScoped<IUserRepository, UserRepository>();
-
+        
+        // Adaptadores de seguridad
+        services.AddScoped<IPasswordHashService, PasswordHashService>();
+        
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
