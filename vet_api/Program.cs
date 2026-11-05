@@ -1,10 +1,11 @@
 
 using MediatR;
 using Microsoft.OpenApi;
-using vet.Application.Configuration;
+using vet.Infrastructure.Configuration;
 using vet.Application.UseCases.User.Querys;
 using vet.Domain.DTOs;
-using vet.Infrastructure.Configurate;
+using vet.Infrastructure.Persistence.Seeders;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -104,4 +105,5 @@ app.MapControllers();
 // 9. RUN
 // =============================================
 
+await SuperAdminSeeder.SeedAsync(app.Services);
 app.Run();

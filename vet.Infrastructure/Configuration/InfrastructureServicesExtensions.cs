@@ -9,7 +9,7 @@ using vet.Infrastructure.Persistence.Repositories;
 
 
 
-namespace vet.Infrastructure.Configurate;
+namespace vet.Infrastructure.Configuration;
 
 public static class InfrastructureServicesExtensions
 {
@@ -40,6 +40,9 @@ public static class InfrastructureServicesExtensions
         
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        
+        //JWT
+        services.AddScoped<IJwtTokenService, JwtTokenService>();
 
         return services;
     }

@@ -1,17 +1,18 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
-using vet.Application.UseCases.User.Querys;
+using vet.Application.UseCases.User.Commands;
 
-namespace vet.Application.Configuration;
+namespace vet.Infrastructure.Configuration;
 
 public static class ServiceRegistrationExtensions
 {
     public static IServiceCollection AddApplicationServices(
         this IServiceCollection services)
     {
+        // Registrar los Handlers CQRS de Application.
         services.AddMediatR(cfg =>
             cfg.RegisterServicesFromAssemblyContaining<
-                GetAllUserQueryHandler>());
+                CreateUserCommandHandler>());
 
         return services;
     }
