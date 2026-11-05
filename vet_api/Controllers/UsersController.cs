@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using vet.Domain.DTOs;
 using vet.Application.UseCases.User.Querys;
 using vet.Application.UseCases.User.Commands;
+using Microsoft.AspNetCore.Authorization;
 
 namespace vet_api.Controllers;
 
@@ -35,20 +36,15 @@ public class UsersController(IMediator mediator) : ControllerBase
 
         return Ok(user);
     }
-    
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateUserCommand command,[FromServices] IWebHostEnvironment environment, CancellationToken cancellationToken)
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    public async Task<IActionResult> Create(
+        [FromBody] CreateUserCommand command,
+        CancellationToken cancellationToken)
     {
-        // Temporal: solo permitir registros en desarrollo
-        // hasta implementar autenticación y autorización.
-        if (!environment.IsDevelopment())
-            return StatusCode(403);
-
         try
         {
-            var id = await mediator.Send(
-                command,
-                cancellationToken);
+            var id = await mediator.Send(command, cancellationToken);
 
             return CreatedAtAction(
                 nameof(GetById),
@@ -62,6 +58,10 @@ public class UsersController(IMediator mediator) : ControllerBase
         catch (ArgumentException ex)
         {
             return BadRequest(new { message = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new { message = ex.Message });
         }
         catch (InvalidOperationException ex)
         {

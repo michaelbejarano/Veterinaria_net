@@ -5,13 +5,16 @@ using vet.Infrastructure.Configuration;
 using vet.Application.UseCases.User.Querys;
 using vet.Domain.DTOs;
 using vet.Infrastructure.Persistence.Seeders;
-
+using vet.Application.Services;
+using vet_api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // =============================================
 // 1. CONTROLLERS
 // =============================================
+
+
 
 builder.Services.AddControllers();
 
@@ -34,6 +37,14 @@ builder.Services.AddInfrastructureServices(
 // 4. SWAGGER
 // =============================================
 
+
+
+builder.Services.AddHttpContextAccessor();
+
+builder.Services.AddScoped<
+    ICurrentUserService,
+    CurrentUserService>();
+
 builder.Services.AddEndpointsApiExplorer();
 
 builder.Services.AddSwaggerGen(options =>
@@ -44,6 +55,25 @@ builder.Services.AddSwaggerGen(options =>
         Version = "v1",
         Description = "API REST para la gestión del sistema veterinario VetCare."
     });
+
+    // Configuración JWT Bearer
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "Introduce el token JWT generado en /api/auth/login."
+    });
+
+    // Aplicar seguridad a los endpoints de Swagger
+    options.AddSecurityRequirement(document =>
+        new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference("Bearer", document)] =
+                new List<string>()
+        });
 });
 
 // =============================================
@@ -92,8 +122,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 // Cuando implementemos JWT:
-// app.UseAuthentication();
-// app.UseAuthorization();
+ app.UseAuthentication();
+ app.UseAuthorization();
 
 // =============================================
 // 8. CONTROLLERS
