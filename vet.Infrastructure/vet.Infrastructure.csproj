@@ -1,4 +1,5 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -6,21 +7,27 @@
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
+    <!-- Entity Framework, PostgreSQL y seguridad -->
     <ItemGroup>
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
-        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        <PrivateAssets>all</PrivateAssets>
-      </PackageReference>
-      <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" />
-      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
-      <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
-      <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.2" />
-      <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.2" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+        </PackageReference>
+
+        <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
     </ItemGroup>
 
+    <!-- Acceso a IHttpContextAccessor -->
     <ItemGroup>
-      <ProjectReference Include="..\vet.Application\vet.Application.csproj" />
-      <ProjectReference Include="..\vet.Domain\vet.Domain.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <!-- Referencias a las capas internas -->
+    <ItemGroup>
+        <ProjectReference Include="..\vet.Application\vet.Application.csproj" />
+        <ProjectReference Include="..\vet.Domain\vet.Domain.csproj" />
     </ItemGroup>
 
 </Project>

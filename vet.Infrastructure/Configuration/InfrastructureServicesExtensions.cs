@@ -43,6 +43,8 @@ public static class InfrastructureServicesExtensions
         
         //JWT
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+        
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         return services;
     }

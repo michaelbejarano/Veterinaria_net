@@ -1,6 +1,7 @@
 namespace vet.Application.Services;
 
-public class ICurrentUserService
+public interface ICurrentUserService
 {
-    
+    bool IsAuthenticated { get; }
+    string? Role { get; }
 }

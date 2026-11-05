@@ -1,7 +1,8 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
 using vet.Application.Services;
 
-namespace vet_api.Services;
+namespace vet.Infrastructure.Adapters.Security;
 
 public class CurrentUserService : ICurrentUserService
 {

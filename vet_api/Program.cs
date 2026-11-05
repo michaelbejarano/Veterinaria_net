@@ -6,7 +6,8 @@ using vet.Application.UseCases.User.Querys;
 using vet.Domain.DTOs;
 using vet.Infrastructure.Persistence.Seeders;
 using vet.Application.Services;
-using vet_api.Services;
+using vet.Infrastructure.Adapters.Security;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
