@@ -1,10 +1,9 @@
-﻿
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using MediatR;
 using vet.Application.Services;
+using vet.Application.Validators.User;
 using vet.Domain.Ports;
 using UserEntity = vet.Domain.Entities.User;
-using RoleEntity = vet.Domain.Entities.Role;
 
 namespace vet.Application.UseCases.User.Commands;
 
@@ -23,47 +22,16 @@ public class CreateUserCommand : IRequest<long>
     public long RoleId { get; set; }
 }
 
-public class CreateUserCommandHandler(IUnitOfWork unitOfWork, IPasswordHashService passwordHashService) : IRequestHandler<CreateUserCommand, long>
+public class CreateUserCommandHandler(IUnitOfWork unitOfWork, IPasswordHashService passwordHashService, UserEmailValidator emailValidator, UserRoleValidator roleValidator, UserPasswordValidator passwordValidator) : IRequestHandler<CreateUserCommand, long>
 {
     public async Task<long> Handle(CreateUserCommand request, CancellationToken cancellationToken)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        // Validar datos mediante clases independientes
+        var email = await emailValidator.ValidateAsync(request.Email);
 
-        if (string.IsNullOrWhiteSpace(email) ||
-            !new EmailAddressAttribute().IsValid(email) ||
-            email.Length > 200)
-        {
-            throw new ArgumentException(
-                "El correo electrónico no es válido.");
-        }
+        await roleValidator.ValidateAsync(request.RoleId);
 
-        if (string.IsNullOrWhiteSpace(request.Password) ||
-            request.Password.Length < 12)
-        {
-            throw new ArgumentException(
-                "La contraseña debe tener al menos 12 caracteres.");
-        }
-
-        // Comprobar correo duplicado
-        var exists = await unitOfWork.Users
-            .ExistsByEmailAsync(email);
-
-        if (exists)
-        {
-            throw new InvalidOperationException(
-                "El correo ya está registrado.");
-        }
-
-        // Comprobar que el rol existe
-        var role = await unitOfWork
-            .Repository<RoleEntity>()
-            .GetByIdAsync(request.RoleId);
-
-        if (role is null)
-        {
-            throw new ArgumentException(
-                "El rol seleccionado no existe.");
-        }
+        passwordValidator.Validate(request.Password);
 
         // Crear usuario
         var user = new UserEntity
@@ -75,10 +43,10 @@ public class CreateUserCommandHandler(IUnitOfWork unitOfWork, IPasswordHashServi
             IsActive = true
         };
 
+        // Guardar usuario
         await unitOfWork.Users.AddAsync(user);
 
-        await unitOfWork.SaveChangesAsync(
-            cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return user.Id;
     }
