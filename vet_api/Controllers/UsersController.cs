@@ -36,13 +36,22 @@ public class UsersController(IMediator mediator) : ControllerBase
         return Ok(user);
     }
     
+
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateUserCommand command,[FromServices] IWebHostEnvironment environment, CancellationToken cancellationToken)
+    public async Task<IActionResult> Create(
+        [FromBody] CreateUserCommand command,
+        [FromServices] IWebHostEnvironment environment,
+        CancellationToken cancellationToken)
     {
-        // Temporal: solo permitir registros en desarrollo
-        // hasta implementar autenticación y autorización.
+        // Temporal: disponible únicamente en Development.
+        // Después lo protegeremos con JWT y roles.
         if (!environment.IsDevelopment())
-            return StatusCode(403);
+        {
+            return StatusCode(403, new
+            {
+                message = "Operación no disponible."
+            });
+        }
 
         try
         {
@@ -68,6 +77,7 @@ public class UsersController(IMediator mediator) : ControllerBase
             return Conflict(new { message = ex.Message });
         }
     }
+
     
     [HttpPut("{id:long}")]
     public async Task<IActionResult> Update(long id, [FromBody] UpdateUserCommand command, [FromServices] IWebHostEnvironment environment, CancellationToken cancellationToken)
@@ -115,6 +125,37 @@ public class UsersController(IMediator mediator) : ControllerBase
             });
         }
     }
+    
+    [HttpDelete("{id:long}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(
+        long id,
+        [FromServices] IWebHostEnvironment environment,
+        CancellationToken cancellationToken)
+    {
+        // Temporal: solo Development hasta implementar JWT
+        if (!environment.IsDevelopment())
+        {
+            return StatusCode(403, new
+            {
+                message = "Operación no disponible."
+            });
+        }
 
+        var deleted = await mediator.Send(
+            new DeleteUserCommand { Id = id },
+            cancellationToken);
 
+        if (!deleted)
+        {
+            return NotFound(new
+            {
+                message = "Usuario no encontrado."
+            });
+        }
+
+        return NoContent();
+    }
 }
