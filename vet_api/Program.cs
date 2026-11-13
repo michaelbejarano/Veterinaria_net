@@ -1,7 +1,7 @@
 
 using MediatR;
 using Microsoft.OpenApi;
-using vet.Application.Configuration;
+using vet_api.Configurate;
 using vet.Application.UseCases.User.Querys;
 using vet.Domain.DTOs;
 using vet.Infrastructure.Configurate;
