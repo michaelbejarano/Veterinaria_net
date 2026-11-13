@@ -1,4 +1,4 @@
-﻿namespace vet.Application.Services;
+﻿namespace vet.Application.IServices;
 
 public interface IPasswordHashService
 {

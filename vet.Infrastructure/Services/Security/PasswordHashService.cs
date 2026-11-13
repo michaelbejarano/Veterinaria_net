@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using vet.Application.Services;
+using vet.Application.IServices;
 using vet.Domain.Entities;
 
-namespace vet.Infrastructure.Adapters.Security;
+namespace vet.Infrastructure.Services.Security;
 
 public class PasswordHashService : IPasswordHashService
 {
