@@ -20,5 +20,9 @@
       <ProjectReference Include="..\vet.Application\vet.Application.csproj" />
       <ProjectReference Include="..\vet.Domain\vet.Domain.csproj" />
     </ItemGroup>
+      <!-- Acceso a las funcionalidades de ASP.NET Core -->
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
 
 </Project>

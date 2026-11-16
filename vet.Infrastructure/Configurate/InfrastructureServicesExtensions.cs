@@ -22,8 +22,7 @@ public static class InfrastructureServicesExtensions
 
         // PostgreSQL - Entity Framework Core
         services.AddDbContext<VetCareContext>(options =>
-            options.UseNpgsql(connectionString)
-        );
+            options.UseNpgsql(connectionString));
 
         // Repositorio genérico
         services.AddScoped(
@@ -33,9 +32,13 @@ public static class InfrastructureServicesExtensions
         // Repositorios específicos
         services.AddScoped<IUserRepository, UserRepository>();
 
-        // Adaptadores de seguridad
+        // Seguridad y autenticación
         services.AddScoped<IPasswordHashService, PasswordHashService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
+
+        // Usuario autenticado
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork>();

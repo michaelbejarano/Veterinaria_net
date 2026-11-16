@@ -22,11 +22,23 @@ public class CreateUserCommand : IRequest<long>
     public long RoleId { get; set; }
 }
 
-public class CreateUserCommandHandler(IUnitOfWork unitOfWork, IPasswordHashService passwordHashService, UserEmailValidator emailValidator, UserRoleValidator roleValidator, UserPasswordValidator passwordValidator) : IRequestHandler<CreateUserCommand, long>
+public class CreateUserCommandHandler(
+    IUnitOfWork unitOfWork,
+    IPasswordHashService passwordHashService,
+    UserEmailValidator emailValidator,
+    UserRoleValidator roleValidator,
+    UserPasswordValidator passwordValidator,
+    UserPermissionValidator permissionValidator
+) : IRequestHandler<CreateUserCommand, long>
 {
-    public async Task<long> Handle(CreateUserCommand request, CancellationToken cancellationToken)
+    public async Task<long> Handle(
+        CreateUserCommand request,
+        CancellationToken cancellationToken)
     {
-        // Validar datos mediante clases independientes
+        // Comprobar autorización antes de crear
+        await permissionValidator.ValidateCreateAsync(request.RoleId);
+
+        // Validaciones existentes
         var email = await emailValidator.ValidateAsync(request.Email);
 
         await roleValidator.ValidateAsync(request.RoleId);
@@ -43,7 +55,6 @@ public class CreateUserCommandHandler(IUnitOfWork unitOfWork, IPasswordHashServi
             IsActive = true
         };
 
-        // Guardar usuario
         await unitOfWork.Users.AddAsync(user);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

@@ -14,10 +14,13 @@ public static class ServiceRegistrationExtensions
             cfg.RegisterServicesFromAssemblyContaining<
                 CreateUserCommandHandler>());
 
-        // Registrar validadores
+        // Validadores de usuarios
         services.AddScoped<UserEmailValidator>();
         services.AddScoped<UserRoleValidator>();
         services.AddScoped<UserPasswordValidator>();
+
+        // Validador de permisos según el rol autenticado
+        services.AddScoped<UserPermissionValidator>();
 
         return services;
     }

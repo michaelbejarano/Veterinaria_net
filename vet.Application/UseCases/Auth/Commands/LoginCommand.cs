@@ -2,7 +2,7 @@
 using System.ComponentModel.DataAnnotations;
 using MediatR;
 using vet.Application.IServices;
-using vet.Application.UseCases.Auth.DTOs;
+using vet.Domain.DTOs.Auth;
 using vet.Domain.Ports;
 using RoleEntity = vet.Domain.Entities.Role;
 

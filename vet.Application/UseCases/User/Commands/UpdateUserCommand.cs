@@ -20,19 +20,32 @@ public class UpdateUserCommand : IRequest<bool>
     public bool IsActive { get; set; }
 }
 
-public class UpdateUserCommandHandler(IUnitOfWork unitOfWork, UserEmailValidator emailValidator, UserRoleValidator roleValidator) : IRequestHandler<UpdateUserCommand, bool>
+public class UpdateUserCommandHandler(
+    IUnitOfWork unitOfWork,
+    UserEmailValidator emailValidator,
+    UserRoleValidator roleValidator,
+    UserPermissionValidator permissionValidator
+) : IRequestHandler<UpdateUserCommand, bool>
 {
     public async Task<bool> Handle(
         UpdateUserCommand request,
         CancellationToken cancellationToken)
     {
+        // Comprobar autorización incluso si el ID no existe
+        await permissionValidator.GetCurrentRoleAsync();
+
         // Buscar usuario
         var user = await unitOfWork.Users.GetByIdAsync(request.Id);
 
         if (user is null)
             return false;
 
-        // Delegar las validaciones
+        // Comprobar permisos sobre el usuario y nuevo rol
+        await permissionValidator.ValidateManageAsync(
+            user,
+            request.RoleId);
+
+        // Validaciones existentes
         var email = await emailValidator.ValidateAsync(
             request.Email,
             user.Email);

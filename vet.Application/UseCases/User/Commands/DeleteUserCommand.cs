@@ -1,4 +1,5 @@
 ﻿using MediatR;
+using vet.Application.Validators.User;
 using vet.Domain.Ports;
 
 namespace vet.Application.UseCases.User.Commands;
@@ -8,24 +9,31 @@ public class DeleteUserCommand : IRequest<bool>
     public long Id { get; set; }
 }
 
-public class DeleteUserCommandHandler(IUnitOfWork unitOfWork) : IRequestHandler<DeleteUserCommand, bool>
+public class DeleteUserCommandHandler(
+    IUnitOfWork unitOfWork,
+    UserPermissionValidator permissionValidator
+) : IRequestHandler<DeleteUserCommand, bool>
 {
-    public async Task<bool> Handle(DeleteUserCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(
+        DeleteUserCommand request,
+        CancellationToken cancellationToken)
     {
-        // Buscar usuario por ID
-        var user = await unitOfWork.Users
-            .GetByIdAsync(request.Id);
+        // Comprobar autorización
+        await permissionValidator.GetCurrentRoleAsync();
 
-        // Si no existe, retornar false
+        // Buscar usuario
+        var user = await unitOfWork.Users.GetByIdAsync(request.Id);
+
         if (user is null)
             return false;
+
+        // Comprobar permisos sobre la cuenta
+        await permissionValidator.ValidateManageAsync(user);
 
         // Desactivación lógica
         user.IsActive = false;
 
-        // Guardar cambios en PostgreSQL
-        await unitOfWork.SaveChangesAsync(
-            cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return true;
     }
