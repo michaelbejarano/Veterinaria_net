@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using vet.Application.UseCases.User.Commands;
 using vet.Application.Validators.User;
-
+using vet.Application.Validators.Employee;
 namespace vet_api.Configurate;
 
 public static class ServiceRegistrationExtensions
@@ -21,6 +21,10 @@ public static class ServiceRegistrationExtensions
 
         // Validador de permisos según el rol autenticado
         services.AddScoped<UserPermissionValidator>();
+        
+        //validator de employee
+        services.AddScoped<EmployeeValidator>();
+        services.AddScoped<EmployeePermissionValidator>();
 
         return services;
     }
