@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using vet.Application.UseCases.User.Commands;
 using vet.Application.Validators.User;
+using vet.Application.Validators.EmployeeSchedule;
 using vet.Application.Validators.Employee;
 namespace vet_api.Configurate;
 
@@ -25,7 +26,9 @@ public static class ServiceRegistrationExtensions
         //validator de employee
         services.AddScoped<EmployeeValidator>();
         services.AddScoped<EmployeePermissionValidator>();
-
+        
+        //horarios worker
+        services.AddScoped<EmployeeScheduleValidator>();
         return services;
     }
 }
