@@ -69,7 +69,7 @@ public class CreatePetCommandHandler
         if (request.BreedId.HasValue)
         {
             var breed = await _unitOfWork
-                .Repository<Breed>()
+                .Repository<Domain.Entities.Breed>()
                 .GetByIdAsync(request.BreedId.Value);
 
             if (breed is null)
