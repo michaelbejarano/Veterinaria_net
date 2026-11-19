@@ -1,8 +1,10 @@
+
 using System.ComponentModel.DataAnnotations;
 using MediatR;
-using vet.Application.Validators.Employee;
-using vet.Application.Validators.EmployeeSchedule;
+using vet.Application.Services;
 using vet.Domain.Ports;
+using vet.Domain.Services;
+using EmployeeEntity = vet.Domain.Entities.Employee;
 using ScheduleEntity = vet.Domain.Entities.EmployeeSchedule;
 
 namespace vet.Application.UseCases.EmployeeSchedule.Commands;
@@ -15,34 +17,68 @@ public class CreateEmployeeScheduleCommand : IRequest<long>
     [Range(1, 7)]
     public short Weekday { get; set; }
 
-    [Required]
     public TimeOnly StartAt { get; set; }
 
-    [Required]
     public TimeOnly EndAt { get; set; }
 }
 
 public class CreateEmployeeScheduleCommandHandler(
     IUnitOfWork unitOfWork,
-    EmployeeScheduleValidator scheduleValidator,
-    EmployeePermissionValidator permissionValidator
+    UserAuthorizationService authorizationService
 ) : IRequestHandler<CreateEmployeeScheduleCommand, long>
 {
     public async Task<long> Handle(
         CreateEmployeeScheduleCommand request,
         CancellationToken cancellationToken)
     {
-        // 1. Validar permisos administrativos
-        await permissionValidator.ValidateManageAsync();
+        // 1. Validar autorización
+        await authorizationService.GetCurrentRoleAsync();
 
-        // 2. Validar reglas del horario
-        await scheduleValidator.ValidateAsync(
-            request.EmployeeId,
+        // 2. Aplicar reglas de negocio
+        EmployeeScheduleRules.Validate(
             request.Weekday,
             request.StartAt,
             request.EndAt);
 
-        // 3. Crear entidad
+        // 3. Verificar empleado
+        var employee = await unitOfWork
+            .Repository<EmployeeEntity>()
+            .GetByIdAsync(request.EmployeeId);
+
+        if (employee is null)
+        {
+            throw new ArgumentException(
+                "El empleado no existe.");
+        }
+
+        if (!employee.IsActive)
+        {
+            throw new InvalidOperationException(
+                "No se pueden asignar horarios a empleados inactivos.");
+        }
+
+        // 4. Consultar horarios del mismo día
+        var schedules = await unitOfWork
+            .Repository<ScheduleEntity>()
+            .FindAsync(s =>
+                s.EmployeeId == request.EmployeeId &&
+                s.Weekday == request.Weekday);
+
+        // 5. Comprobar superposiciones
+        var hasOverlap = schedules.Any(s =>
+            EmployeeScheduleRules.HasOverlap(
+                request.StartAt,
+                request.EndAt,
+                s.StartAt,
+                s.EndAt));
+
+        if (hasOverlap)
+        {
+            throw new InvalidOperationException(
+                "El empleado ya tiene un horario que se superpone.");
+        }
+
+        // 6. Crear horario
         var schedule = new ScheduleEntity
         {
             EmployeeId = request.EmployeeId,
@@ -51,12 +87,10 @@ public class CreateEmployeeScheduleCommandHandler(
             EndAt = request.EndAt
         };
 
-        // 4. Registrar mediante repositorio genérico
         await unitOfWork
             .Repository<ScheduleEntity>()
             .AddAsync(schedule);
 
-        // 5. Guardar cambios
         await unitOfWork.SaveChangesAsync(
             cancellationToken);
 

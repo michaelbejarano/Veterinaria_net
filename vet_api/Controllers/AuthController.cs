@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using vet.Application.UseCases.Auth.Commands;
-using vet.Domain.DTOs.Auth;
+using vet.Application.DTOs.Auth;
 using Microsoft.AspNetCore.Authorization;
 using vet.Application.UseCases.Auth.Querys;
 

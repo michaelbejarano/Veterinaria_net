@@ -1,4 +1,4 @@
-namespace vet.Domain.DTOs.EmployeeSchedule;
+namespace vet.Application.DTOs.EmployeeSchedule;
 
 public class EmployeeScheduleDto
 {

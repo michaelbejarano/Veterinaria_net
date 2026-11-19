@@ -1,7 +1,8 @@
-namespace vet.Domain.DTOs.Employee;
+namespace vet.Application.DTOs.Employee;
 
-public class CreateEmployeeDto
+public class EmployeeDto
 {
+    public long Id { get; set; }
     public long? UserId { get; set; }
 
     public string FirstNames { get; set; } = string.Empty;
@@ -15,5 +16,5 @@ public class CreateEmployeeDto
     public string? LicenseNumber { get; set; }
     public string? Specialty { get; set; }
 
-    public decimal MonthlySalary { get; set; }
+    public bool IsActive { get; set; }
 }

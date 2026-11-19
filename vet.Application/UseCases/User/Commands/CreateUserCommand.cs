@@ -1,8 +1,11 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 using MediatR;
 using vet.Application.IServices;
-using vet.Application.Validators.User;
+using vet.Application.Services;
 using vet.Domain.Ports;
+using vet.Domain.Services;
+using RoleEntity = vet.Domain.Entities.Role;
 using UserEntity = vet.Domain.Entities.User;
 
 namespace vet.Application.UseCases.User.Commands;
@@ -26,26 +29,43 @@ public class CreateUserCommandHandler(
     IUnitOfWork unitOfWork,
     IPasswordHashService passwordHashService,
     UserEmailValidator emailValidator,
-    UserRoleValidator roleValidator,
     UserPasswordValidator passwordValidator,
-    UserPermissionValidator permissionValidator
+    UserAuthorizationService authorizationService
 ) : IRequestHandler<CreateUserCommand, long>
 {
     public async Task<long> Handle(
         CreateUserCommand request,
         CancellationToken cancellationToken)
     {
-        // Comprobar autorización antes de crear
-        await permissionValidator.ValidateCreateAsync(request.RoleId);
+        // Comprobar el administrador autenticado.
+        var currentRole =
+            await authorizationService.GetCurrentRoleAsync();
 
-        // Validaciones existentes
-        var email = await emailValidator.ValidateAsync(request.Email);
+        // Verificar que el rol solicitado exista.
+        var targetRole = await unitOfWork
+            .Repository<RoleEntity>()
+            .GetByIdAsync(request.RoleId);
 
-        await roleValidator.ValidateAsync(request.RoleId);
+        if (targetRole is null)
+            throw new ArgumentException(
+                "El rol seleccionado no existe.");
 
+        // Aplicar las reglas del dominio.
+        UserRoleRules.ValidateRoleAssignment(
+            currentRole,
+            targetRole.Name);
+
+        // Validar correo y comprobar duplicados.
+        var email = emailValidator.Validate(request.Email);
+
+        if (await unitOfWork.Users.ExistsByEmailAsync(email))
+            throw new InvalidOperationException(
+                "El correo electrónico ya está registrado.");
+
+        // Validar contraseña.
         passwordValidator.Validate(request.Password);
 
-        // Crear usuario
+        // Crear usuario.
         var user = new UserEntity
         {
             Email = email,
@@ -56,7 +76,6 @@ public class CreateUserCommandHandler(
         };
 
         await unitOfWork.Users.AddAsync(user);
-
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return user.Id;

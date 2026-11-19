@@ -1,5 +1,5 @@
 using MediatR;
-using vet.Domain.DTOs.EmployeeSchedule;
+using vet.Application.DTOs.EmployeeSchedule;
 using vet.Domain.Ports;
 using ScheduleEntity = vet.Domain.Entities.EmployeeSchedule;
 

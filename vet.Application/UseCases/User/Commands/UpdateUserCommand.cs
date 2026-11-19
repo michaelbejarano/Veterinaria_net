@@ -1,7 +1,10 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿
+using System.ComponentModel.DataAnnotations;
 using MediatR;
+using vet.Application.Services;
 using vet.Domain.Ports;
-using vet.Application.Validators.User;
+using vet.Domain.Services;
+using RoleEntity = vet.Domain.Entities.Role;
 
 namespace vet.Application.UseCases.User.Commands;
 
@@ -23,36 +26,67 @@ public class UpdateUserCommand : IRequest<bool>
 public class UpdateUserCommandHandler(
     IUnitOfWork unitOfWork,
     UserEmailValidator emailValidator,
-    UserRoleValidator roleValidator,
-    UserPermissionValidator permissionValidator
+    UserAuthorizationService authorizationService
 ) : IRequestHandler<UpdateUserCommand, bool>
 {
     public async Task<bool> Handle(
         UpdateUserCommand request,
         CancellationToken cancellationToken)
     {
-        // Comprobar autorización incluso si el ID no existe
-        await permissionValidator.GetCurrentRoleAsync();
+        // Verificar autorización.
+        var currentRole =
+            await authorizationService.GetCurrentRoleAsync();
 
-        // Buscar usuario
         var user = await unitOfWork.Users.GetByIdAsync(request.Id);
 
         if (user is null)
             return false;
 
-        // Comprobar permisos sobre el usuario y nuevo rol
-        await permissionValidator.ValidateManageAsync(
-            user,
-            request.RoleId);
+        // No permitir modificar la propia cuenta.
+        authorizationService.ValidateNotSelf(user.Id);
 
-        // Validaciones existentes
-        var email = await emailValidator.ValidateAsync(
-            request.Email,
-            user.Email);
+        // Comprobar el rol actual del usuario.
+        var existingRole = await unitOfWork
+            .Repository<RoleEntity>()
+            .GetByIdAsync(user.RoleId);
 
-        await roleValidator.ValidateAsync(request.RoleId);
+        if (existingRole is null)
+            throw new ArgumentException(
+                "El usuario tiene un rol inválido.");
 
-        // Actualizar usuario
+        // Comprobar si podemos administrar esta cuenta.
+        UserRoleRules.ValidateManageRole(
+            currentRole,
+            existingRole.Name);
+
+        // Verificar el nuevo rol.
+        var newRole = await unitOfWork
+            .Repository<RoleEntity>()
+            .GetByIdAsync(request.RoleId);
+
+        if (newRole is null)
+            throw new ArgumentException(
+                "El rol seleccionado no existe.");
+
+        // Comprobar si podemos asignar ese rol.
+        UserRoleRules.ValidateRoleAssignment(
+            currentRole,
+            newRole.Name);
+
+        // Validar correo.
+        var email = emailValidator.Validate(request.Email);
+
+        if (!string.Equals(
+                user.Email,
+                email,
+                StringComparison.OrdinalIgnoreCase) &&
+            await unitOfWork.Users.ExistsByEmailAsync(email))
+        {
+            throw new InvalidOperationException(
+                "El correo electrónico ya está registrado.");
+        }
+
+        // Actualizar usuario.
         user.Email = email;
         user.RoleId = request.RoleId;
         user.IsActive = request.IsActive;

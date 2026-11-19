@@ -1,8 +1,9 @@
 ﻿
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using MediatR;
 using vet.Application.IServices;
-using vet.Domain.DTOs.Auth;
+using vet.Application.DTOs.Auth;
 using vet.Domain.Ports;
 using RoleEntity = vet.Domain.Entities.Role;
 
@@ -12,6 +13,8 @@ public class LoginCommand : IRequest<LoginResponseDto>
 {
     [Required]
     [EmailAddress]
+    [DefaultValue("superadmin@vetcare.local")]
+
     public string Email { get; set; } = string.Empty;
 
     [Required]

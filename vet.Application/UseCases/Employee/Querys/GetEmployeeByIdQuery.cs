@@ -1,5 +1,5 @@
 using MediatR;
-using vet.Domain.DTOs.Employee;
+using vet.Application.DTOs.Employee;
 using vet.Domain.Ports;
 
 namespace vet.Application.UseCases.Employee.Querys;

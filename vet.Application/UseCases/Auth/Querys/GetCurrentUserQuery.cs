@@ -1,6 +1,6 @@
 using MediatR;
 using vet.Application.IServices;
-using vet.Domain.DTOs.Auth;
+using vet.Application.DTOs.Auth;
 using vet.Domain.Entities;
 using vet.Domain.Ports;
 

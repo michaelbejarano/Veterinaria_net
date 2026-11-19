@@ -1,4 +1,4 @@
-﻿namespace vet.Domain.DTOs.Auth;
+﻿namespace vet.Application.DTOs.Auth;
 public class LoginResponseDto
 {
     public string AccessToken { get; set; } = string.Empty;

@@ -2,9 +2,9 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using vet.Application.DTOs;
 using vet.Application.UseCases.User.Commands;
 using vet.Application.UseCases.User.Querys;
-using vet.Domain.DTOs;
 
 namespace vet_api.Controllers;
 
