@@ -107,6 +107,15 @@ public class CreateAppointmentCommandHandler
                 throw new ArgumentException(
                     $"El trabajador no tiene asignado el servicio '{service.Name}'.");
         }
+        
+        var requiredMinutes = services.Sum(
+            service => service.DurationMinutes);
+
+        AppointmentRules.ValidateDuration(
+            startUtc,
+            endUtc,
+            requiredMinutes);
+
 
         // 6. Convertir a hora local de Perú
         var peruTimeZone = TimeZoneInfo.FindSystemTimeZoneById(
@@ -133,6 +142,12 @@ public class CreateAppointmentCommandHandler
             localEnd,
             schedules,
             weekday);
+        AppointmentRules.ValidateSlotAlignment(
+            localStart,
+            localEnd,
+            schedules,
+            weekday,
+            requiredMinutes);
 
         // 8. Verificar bloqueos
         var blocks = await _unitOfWork

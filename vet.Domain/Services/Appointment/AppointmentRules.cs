@@ -20,10 +20,19 @@ public static class AppointmentRules
             throw new ArgumentException(
                 "La cita debe programarse para una fecha futura.");
 
-        if (startAt.Date != endAt.Date)
-            throw new ArgumentException(
-                "La cita debe comenzar y terminar el mismo día.");
+       
     }
+    
+    public static bool Overlaps(
+        DateTime startAt,
+        DateTime endAt,
+        DateTime otherStart,
+        DateTime otherEnd)
+    {
+        return startAt < otherEnd &&
+               endAt > otherStart;
+    }
+
 
     public static void ValidateWorkingHours(
         DateTime startAt,
@@ -90,4 +99,59 @@ public static class AppointmentRules
             2,
             MidpointRounding.AwayFromZero);
     }
+    
+    public static void ValidateDuration(
+        DateTime startAt,
+        DateTime endAt,
+        int requiredMinutes)
+    {
+        if (requiredMinutes <= 0)
+            throw new ArgumentException(
+                "La duración de los servicios debe ser mayor que cero.");
+
+        var reservedMinutes = (endAt - startAt).TotalMinutes;
+
+        if (reservedMinutes != requiredMinutes)
+            throw new ArgumentException(
+                $"La cita debe durar exactamente {requiredMinutes} minutos.");
+    }
+    
+    
+    public static void ValidateSlotAlignment(
+        DateTime localStart,
+        DateTime localEnd,
+        IEnumerable<EmployeeSchedule> schedules,
+        short weekday,
+        int requiredMinutes)
+    {
+        if (requiredMinutes <= 0)
+            throw new ArgumentException(
+                "La duración debe ser mayor que cero.");
+
+        var validSlot = schedules
+            .Where(s => s.Weekday == weekday)
+            .Any(schedule =>
+            {
+                var shiftStart = localStart.Date
+                    .Add(schedule.StartAt.ToTimeSpan());
+
+                var shiftEnd = localStart.Date
+                    .Add(schedule.EndAt.ToTimeSpan());
+
+                if (localStart < shiftStart ||
+                    localEnd > shiftEnd)
+                    return false;
+
+                var elapsed = localStart - shiftStart;
+
+                return elapsed.Ticks %
+                    TimeSpan.FromMinutes(requiredMinutes).Ticks == 0;
+            });
+
+        if (!validSlot)
+            throw new ArgumentException(
+                "La hora seleccionada no corresponde a un bloque disponible.");
+    }
+
+
 }

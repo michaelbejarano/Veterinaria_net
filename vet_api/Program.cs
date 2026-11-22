@@ -6,7 +6,62 @@ using Microsoft.OpenApi;
 using vet_api.Configurate;
 using vet.Infrastructure.Configurate;
 
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddProblemDetails();
+
+builder.Services.AddExceptionHandler(options =>
+{
+    options.ExceptionHandler = async context =>
+    {
+        var exception = context.Features
+            .Get<IExceptionHandlerFeature>()?.Error;
+
+        var statusCode = exception switch
+        {
+            DbUpdateException dbException
+                when dbException.InnerException is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.ExclusionViolation,
+                    ConstraintName: "appointments_no_overlap"
+                } => StatusCodes.Status409Conflict,
+
+            ArgumentException => StatusCodes.Status400BadRequest,
+
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        context.Response.StatusCode = statusCode;
+
+        var message = statusCode switch
+        {
+            StatusCodes.Status409Conflict =>
+                "El veterinario ya tiene una cita en ese horario.",
+
+            StatusCodes.Status400BadRequest =>
+                exception?.Message ?? "Solicitud inválida.",
+
+            _ => "Ocurrió un error interno del servidor."
+        };
+
+        await Results.Problem(
+            statusCode: statusCode,
+            title: statusCode switch
+            {
+                400 => "Solicitud inválida",
+                409 => "Conflicto de horario",
+                _ => "Error interno"
+            },
+            detail: message
+        ).ExecuteAsync(context);
+    };
+});
+
 
 // =============================================
 // 1. CONTROLLERS
@@ -120,6 +175,9 @@ builder.Services.AddCors(options =>
 // =============================================
 
 var app = builder.Build();
+
+
+app.UseExceptionHandler();
 
 // =============================================
 // 8. MIDDLEWARE
