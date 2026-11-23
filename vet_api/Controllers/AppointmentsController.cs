@@ -75,6 +75,45 @@ public class AppointmentsController : ControllerBase
 
         return Ok(result);
     }
+    
+    [HttpPatch("{id:long}/cancel")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Cancel(long id)
+    {
+        await _mediator.Send(
+            new CancelAppointmentCommand
+            {
+                AppointmentId = id
+            });
+
+        return Ok(new
+        {
+            message = "La cita fue cancelada correctamente."
+        });
+    }
+    [HttpPost("{id:long}/deposit")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RegisterDeposit(
+        long id,
+        [FromBody] RegisterAppointmentDepositCommand command)
+    {
+        command.AppointmentId = id;
+
+        var paymentId = await _mediator.Send(command);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            new
+            {
+                paymentId,
+                message = "Adelanto registrado y cita confirmada."
+            });
+    }
+
 
 
 }

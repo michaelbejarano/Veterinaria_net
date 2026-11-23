@@ -152,6 +152,64 @@ public static class AppointmentRules
             throw new ArgumentException(
                 "La hora seleccionada no corresponde a un bloque disponible.");
     }
+    
+
+    public static void ValidateCancellation(string status)
+    {
+        if (status != "PENDING_PAYMENT")
+        {
+            throw new ArgumentException(
+                "Por ahora solo se pueden cancelar citas pendientes de pago.");
+        }
+    }
+
+    public static void ValidateDepositPayment(
+        string appointmentStatus,
+        decimal requiredDeposit,
+        decimal amount,
+        bool hasConfirmedPayment)
+    {
+        if (appointmentStatus != "PENDING_PAYMENT")
+            throw new ArgumentException(
+                "Solo se pueden pagar adelantos de citas pendientes de pago.");
+
+        if (requiredDeposit <= 0)
+            throw new ArgumentException(
+                "La cita no requiere un adelanto válido.");
+
+        if (amount != requiredDeposit)
+            throw new ArgumentException(
+                $"El adelanto debe ser exactamente S/ {requiredDeposit:F2}.");
+
+        if (hasConfirmedPayment)
+            throw new ArgumentException(
+                "Esta cita ya tiene un adelanto registrado.");
+    }
+
+    public static void ValidatePaymentMethod(string method)
+    {
+        string[] allowedMethods =
+        {
+            "CASH",
+            "YAPE",
+            "PLIN",
+            "CARD",
+            "BANK_TRANSFER"
+        };
+
+        if (!allowedMethods.Contains(method))
+            throw new ArgumentException(
+                "El método de pago no está permitido.");
+    }
+
+    public static void ValidateOpenCashSession(string status)
+    {
+        if (status != "OPEN")
+            throw new ArgumentException(
+                "La sesión de caja debe estar abierta.");
+    }
+
+
 
 
 }
