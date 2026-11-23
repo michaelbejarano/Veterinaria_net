@@ -29,19 +29,22 @@ public class RegisterAppointmentDepositCommandHandler
         _unitOfWork = unitOfWork;
     }
 
-    public async Task<long> Handle(
-        RegisterAppointmentDepositCommand request,
-        CancellationToken cancellationToken)
+public async Task<long> Handle(
+    RegisterAppointmentDepositCommand request,
+    CancellationToken cancellationToken)
+{
+    long paymentId = 0;
+
+    await _unitOfWork.ExecuteInTransactionAsync(async ct =>
     {
-        // 1. Buscar la cita
+        // 1. Bloquear la cita dentro de la transacción
         var appointment = await _unitOfWork
-            .Repository<AppointmentEntity>()
-            .GetByIdAsync(request.AppointmentId);
+            .GetAppointmentForUpdateAsync(request.AppointmentId, ct);
 
         if (appointment is null)
             throw new KeyNotFoundException("La cita no existe.");
 
-        // 2. Buscar la sesión de caja
+        // 2. Verificar la sesión de caja
         var cashSession = await _unitOfWork
             .Repository<CashSessionEntity>()
             .GetByIdAsync(request.CashSessionId);
@@ -54,25 +57,31 @@ public class RegisterAppointmentDepositCommandHandler
             cashSession.Status);
 
         // 3. Validar el método de pago
-        var method = request.Method.Trim().ToUpperInvariant();
+        var method = request.Method?.Trim().ToUpperInvariant()
+            ?? string.Empty;
 
         AppointmentRules.ValidatePaymentMethod(method);
 
-        // 4. Comprobar pagos anteriores
+        // 4. Consultar pagos confirmados de la cita
         var payments = await _unitOfWork
             .Repository<PaymentEntity>()
-            .GetAllAsync();
+            .FindAsync(p =>
+                p.AppointmentId == appointment.Id &&
+                p.Status == "CONFIRMED");
 
-        var hasConfirmedPayment = payments.Any(p =>
-            p.AppointmentId == request.AppointmentId &&
-            p.Status == "CONFIRMED");
+        var hasConfirmedPayment = payments.Any();
 
-        // 5. Validar el adelanto
+        // 5. Validar las reglas del adelanto
         AppointmentRules.ValidateDepositPayment(
             appointment.Status,
             appointment.RequiredDeposit,
             request.Amount,
             hasConfirmedPayment);
+        //valdimao el vencimiento 15 m r que no hayan transcurrido los 15 minutos
+
+        AppointmentRules.ValidatePaymentExpiration(
+            appointment.PaymentExpiresAt,
+            DateTime.UtcNow);
 
         // 6. Crear el pago
         var payment = new PaymentEntity
@@ -86,7 +95,7 @@ public class RegisterAppointmentDepositCommandHandler
             Status = "CONFIRMED"
         };
 
-        // 7. Crear el movimiento de caja
+        // 7. Crear movimiento de caja
         var movement = new CashMovementEntity
         {
             CashSessionId = cashSession.Id,
@@ -97,24 +106,27 @@ public class RegisterAppointmentDepositCommandHandler
             Reference = request.Reference,
             Description = $"Adelanto de cita #{appointment.Id}",
             Date = DateTime.UtcNow,
-
-            // EF Core establecerá PaymentId al guardar.
             Payment = payment
         };
 
         // 8. Confirmar la cita
         appointment.Status = "CONFIRMED";
 
-        // 9. Registrar las entidades
+        // 9. Registrar entidades
         await _unitOfWork.Repository<PaymentEntity>()
             .AddAsync(payment);
 
         await _unitOfWork.Repository<CashMovementEntity>()
             .AddAsync(movement);
 
-        // 10. Guardar las tres operaciones juntas
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        // 10. Guardar para obtener el ID generado
+        await _unitOfWork.SaveChangesAsync(ct);
 
-        return payment.Id;
-    }
+        paymentId = payment.Id;
+
+    }, cancellationToken);
+
+    return paymentId;
+}
+
 }

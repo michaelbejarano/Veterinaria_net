@@ -6,6 +6,7 @@ using vet.Domain.Ports;
 using vet.Infrastructure.Persistence;
 using vet.Infrastructure.Persistence.Repositories;
 using vet.Infrastructure.Services.Security;
+using vet.Infrastructure.Services.Background;
 
 namespace vet.Infrastructure.Configurate;
 
@@ -42,6 +43,9 @@ public static class InfrastructureServicesExtensions
 
         // Unit of Work
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+        
+        //background deneus de 15 m
+        services.AddHostedService<AppointmentExpirationService>();
 
         return services;
     }

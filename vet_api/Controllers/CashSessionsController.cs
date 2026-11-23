@@ -47,4 +47,44 @@ public class CashSessionsController : ControllerBase
             new { id }
         );
     }
+    
+    [HttpPost("{id:long}/close")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
+    public async Task<IActionResult> Close(
+        long id,
+        [FromBody] CloseCashSessionCommand command)
+    {
+        var userIdValue =
+            User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? User.FindFirst(
+                System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Sub)?.Value;
+
+        if (!long.TryParse(userIdValue, out var userId))
+            return Unauthorized();
+
+        command.CashSessionId = id;
+        command.ClosedByUserId = userId;
+
+        var result = await _mediator.Send(command);
+
+        return Ok(result);
+    }
+    [HttpPost("{id:long}/movements")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> RegisterMovement(
+        long id,
+        [FromBody] RegisterCashMovementCommand command)
+    {
+        command.CashSessionId = id;
+
+        var movementId = await _mediator.Send(command);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            new { id = movementId }
+        );
+    }
 }

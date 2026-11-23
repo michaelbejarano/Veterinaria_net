@@ -208,8 +208,38 @@ public static class AppointmentRules
             throw new ArgumentException(
                 "La sesión de caja debe estar abierta.");
     }
+    public static DateTime CalculatePaymentExpiration(
+        DateTime createdAt)
+    {
+        if (createdAt.Kind != DateTimeKind.Utc)
+            throw new ArgumentException(
+                "La fecha de creación debe estar en UTC.");
 
+        return createdAt.AddMinutes(15);
+    }
+    //valdiamos el vencimiento 15 m
+    public static void ValidatePaymentExpiration(
+        DateTime? paymentExpiresAt,
+        DateTime currentUtc)
+    {
+        if (!paymentExpiresAt.HasValue)
+            throw new ArgumentException(
+                "La cita no tiene una fecha límite de pago configurada.");
 
+        if (currentUtc >= paymentExpiresAt.Value)
+            throw new ArgumentException(
+                "El plazo de 15 minutos para pagar ha vencido.");
+    }
+
+    public static bool ShouldExpire(
+        string status,
+        DateTime? paymentExpiresAt,
+        DateTime currentUtc)
+    {
+        return status == "PENDING_PAYMENT"
+               && paymentExpiresAt.HasValue
+               && currentUtc >= paymentExpiresAt.Value;
+    }
 
 
 }

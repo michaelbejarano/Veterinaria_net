@@ -180,6 +180,11 @@ public class CreateAppointmentCommandHandler
 
         var requiredDeposit =
             AppointmentRules.CalculateRequiredDeposit(reservedPrice);
+        // Calcular el vencimiento del pago (15 minutos)
+        var createdAt = DateTime.UtcNow;
+
+        var paymentExpiresAt =
+            AppointmentRules.CalculatePaymentExpiration(createdAt);
 
         // 11. Construir la cita y sus servicios
         var appointment = new AppointmentEntity
@@ -192,7 +197,6 @@ public class CreateAppointmentCommandHandler
             ReservedPrice = reservedPrice,
             DepositPercent = AppointmentRules.DepositPercent,
             RequiredDeposit = requiredDeposit,
-            PaymentExpiresAt = null,
             CreatedAt = DateTime.UtcNow,
 
             AppointmentServices = services
