@@ -58,7 +58,7 @@ public class JwtTokenService(
             audience: audience,
             claims: claims,
             notBefore: DateTime.UtcNow,
-            expires: DateTime.UtcNow.AddHours(1),
+            expires: DateTime.UtcNow.AddHours(30),
             signingCredentials: credentials);
 
         return new JwtSecurityTokenHandler()
