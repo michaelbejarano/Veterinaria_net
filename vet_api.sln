@@ -8,6 +8,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vet.Application", "vet.Appl
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "vet.Infrastructure", "vet.Infrastructure\vet.Infrastructure.csproj", "{596F19AE-21B7-4B49-9093-9A4331879F32}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{4391A2D3-167C-4741-9863-2E2CD1B0DB8A}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{BA00C3C1-CCD2-4128-8E4D-4D26B9B7B1EA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +34,8 @@ Global
 		{596F19AE-21B7-4B49-9093-9A4331879F32}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{596F19AE-21B7-4B49-9093-9A4331879F32}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{596F19AE-21B7-4B49-9093-9A4331879F32}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{BA00C3C1-CCD2-4128-8E4D-4D26B9B7B1EA} = {4391A2D3-167C-4741-9863-2E2CD1B0DB8A}
 	EndGlobalSection
 EndGlobal

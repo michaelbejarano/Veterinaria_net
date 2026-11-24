@@ -13,11 +13,16 @@
       </PackageReference>
       <PackageReference Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+      <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\vet.Application\vet.Application.csproj" />
       <ProjectReference Include="..\vet.Domain\vet.Domain.csproj" />
+    </ItemGroup>
+      <!-- Acceso a las funcionalidades de ASP.NET Core -->
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
 </Project>

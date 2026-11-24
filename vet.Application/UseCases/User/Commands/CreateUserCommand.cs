@@ -1,10 +1,12 @@
 ﻿
 using System.ComponentModel.DataAnnotations;
 using MediatR;
+using vet.Application.IServices;
 using vet.Application.Services;
 using vet.Domain.Ports;
-using UserEntity = vet.Domain.Entities.User;
+using vet.Domain.Services;
 using RoleEntity = vet.Domain.Entities.Role;
+using UserEntity = vet.Domain.Entities.User;
 
 namespace vet.Application.UseCases.User.Commands;
 
@@ -23,49 +25,47 @@ public class CreateUserCommand : IRequest<long>
     public long RoleId { get; set; }
 }
 
-public class CreateUserCommandHandler(IUnitOfWork unitOfWork, IPasswordHashService passwordHashService) : IRequestHandler<CreateUserCommand, long>
+public class CreateUserCommandHandler(
+    IUnitOfWork unitOfWork,
+    IPasswordHashService passwordHashService,
+    UserEmailValidator emailValidator,
+    UserPasswordValidator passwordValidator,
+    UserAuthorizationService authorizationService
+) : IRequestHandler<CreateUserCommand, long>
 {
-    public async Task<long> Handle(CreateUserCommand request, CancellationToken cancellationToken)
+    public async Task<long> Handle(
+        CreateUserCommand request,
+        CancellationToken cancellationToken)
     {
-        var email = request.Email.Trim().ToLowerInvariant();
+        // Comprobar el administrador autenticado.
+        var currentRole =
+            await authorizationService.GetCurrentRoleAsync();
 
-        if (string.IsNullOrWhiteSpace(email) ||
-            !new EmailAddressAttribute().IsValid(email) ||
-            email.Length > 200)
-        {
-            throw new ArgumentException(
-                "El correo electrónico no es válido.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.Password) ||
-            request.Password.Length < 12)
-        {
-            throw new ArgumentException(
-                "La contraseña debe tener al menos 12 caracteres.");
-        }
-
-        // Comprobar correo duplicado
-        var exists = await unitOfWork.Users
-            .ExistsByEmailAsync(email);
-
-        if (exists)
-        {
-            throw new InvalidOperationException(
-                "El correo ya está registrado.");
-        }
-
-        // Comprobar que el rol existe
-        var role = await unitOfWork
+        // Verificar que el rol solicitado exista.
+        var targetRole = await unitOfWork
             .Repository<RoleEntity>()
             .GetByIdAsync(request.RoleId);
 
-        if (role is null)
-        {
+        if (targetRole is null)
             throw new ArgumentException(
                 "El rol seleccionado no existe.");
-        }
 
-        // Crear usuario
+        // Aplicar las reglas del dominio.
+        UserRoleRules.ValidateRoleAssignment(
+            currentRole,
+            targetRole.Name);
+
+        // Validar correo y comprobar duplicados.
+        var email = emailValidator.Validate(request.Email);
+
+        if (await unitOfWork.Users.ExistsByEmailAsync(email))
+            throw new InvalidOperationException(
+                "El correo electrónico ya está registrado.");
+
+        // Validar contraseña.
+        passwordValidator.Validate(request.Password);
+
+        // Crear usuario.
         var user = new UserEntity
         {
             Email = email,
@@ -76,9 +76,7 @@ public class CreateUserCommandHandler(IUnitOfWork unitOfWork, IPasswordHashServi
         };
 
         await unitOfWork.Users.AddAsync(user);
-
-        await unitOfWork.SaveChangesAsync(
-            cancellationToken);
+        await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return user.Id;
     }

@@ -1,12 +1,67 @@
 
-using MediatR;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using vet.Application.Configuration;
-using vet.Application.UseCases.User.Querys;
-using vet.Domain.DTOs;
+using vet_api.Configurate;
 using vet.Infrastructure.Configurate;
 
+using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddProblemDetails();
+
+builder.Services.AddExceptionHandler(options =>
+{
+    options.ExceptionHandler = async context =>
+    {
+        var exception = context.Features
+            .Get<IExceptionHandlerFeature>()?.Error;
+
+        var statusCode = exception switch
+        {
+            DbUpdateException dbException
+                when dbException.InnerException is PostgresException
+                {
+                    SqlState: PostgresErrorCodes.ExclusionViolation,
+                    ConstraintName: "appointments_no_overlap"
+                } => StatusCodes.Status409Conflict,
+
+            ArgumentException => StatusCodes.Status400BadRequest,
+
+            _ => StatusCodes.Status500InternalServerError
+        };
+
+        context.Response.StatusCode = statusCode;
+
+        var message = statusCode switch
+        {
+            StatusCodes.Status409Conflict =>
+                "El veterinario ya tiene una cita en ese horario.",
+
+            StatusCodes.Status400BadRequest =>
+                exception?.Message ?? "Solicitud inválida.",
+
+            _ => "Ocurrió un error interno del servidor."
+        };
+
+        await Results.Problem(
+            statusCode: statusCode,
+            title: statusCode switch
+            {
+                400 => "Solicitud inválida",
+                409 => "Conflicto de horario",
+                _ => "Error interno"
+            },
+            detail: message
+        ).ExecuteAsync(context);
+    };
+});
+
 
 // =============================================
 // 1. CONTROLLERS
@@ -16,21 +71,57 @@ builder.Services.AddControllers();
 
 // =============================================
 // 2. APPLICATION
-// CQRS + MediatR + Handlers
 // =============================================
 
 builder.Services.AddApplicationServices();
 
 // =============================================
 // 3. INFRASTRUCTURE
-// PostgreSQL + EF Core + Repositories + UnitOfWork
 // =============================================
 
 builder.Services.AddInfrastructureServices(
     builder.Configuration);
 
 // =============================================
-// 4. SWAGGER
+// 4. AUTENTICACIÓN JWT
+// =============================================
+
+var jwtSecret = builder.Configuration["Jwt:SecretKey"]
+    ?? throw new InvalidOperationException(
+        "No se encontró Jwt:SecretKey.");
+
+if (Encoding.UTF8.GetByteCount(jwtSecret) < 32)
+{
+    throw new InvalidOperationException(
+        "La clave JWT debe tener al menos 32 bytes.");
+}
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters =
+            new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+
+                ValidateAudience = true,
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(jwtSecret)),
+
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero
+            };
+    });
+
+builder.Services.AddAuthorization();
+
+// =============================================
+// 5. SWAGGER + JWT BEARER
 // =============================================
 
 builder.Services.AddEndpointsApiExplorer();
@@ -41,16 +132,34 @@ builder.Services.AddSwaggerGen(options =>
     {
         Title = "VetCare API",
         Version = "v1",
-        Description = "API REST para la gestión del sistema veterinario VetCare."
+        Description =
+            "API REST para la gestión del sistema veterinario VetCare."
     });
+
+    // Definir autenticación JWT para Swagger
+    options.AddSecurityDefinition("Bearer",
+        new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description =
+                "Introduce tu token JWT generado en /api/auth/login."
+        });
+
+    // Aplicar el esquema Bearer a las operaciones
+    options.AddSecurityRequirement(document =>
+        new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference(
+                "Bearer", document)] = []
+        });
 });
 
 // =============================================
-// 5. CORS
+// 6. CORS
 // =============================================
 
-// Configuración para desarrollo local.
-// Restringiremos los orígenes cuando conectemos el frontend.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("DevelopmentCors", policy =>
@@ -62,13 +171,16 @@ builder.Services.AddCors(options =>
 });
 
 // =============================================
-// 6. BUILD APPLICATION
+// 7. BUILD
 // =============================================
 
 var app = builder.Build();
 
+
+app.UseExceptionHandler();
+
 // =============================================
-// 7. MIDDLEWARE
+// 8. MIDDLEWARE
 // =============================================
 
 if (app.Environment.IsDevelopment())
@@ -90,18 +202,17 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Cuando implementemos JWT:
-// app.UseAuthentication();
-// app.UseAuthorization();
+app.UseAuthentication();
+app.UseAuthorization();
 
 // =============================================
-// 8. CONTROLLERS
+// 9. CONTROLLERS
 // =============================================
 
 app.MapControllers();
 
 // =============================================
-// 9. RUN
+// 10. RUN
 // =============================================
 
 app.Run();
