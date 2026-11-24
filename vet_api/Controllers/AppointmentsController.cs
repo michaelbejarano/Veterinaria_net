@@ -113,6 +113,29 @@ public class AppointmentsController : ControllerBase
                 message = "Adelanto registrado y cita confirmada."
             });
     }
+    
+    //esatdo
+    [HttpPatch("{id:long}/start")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Start(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var visitId = await _mediator.Send(
+            new StartAppointmentCommand
+            {
+                AppointmentId = id
+            },
+            cancellationToken);
+
+        return Ok(new
+        {
+            visitId,
+            message = "La atención ha iniciado correctamente."
+        });
+    }
 
 
 

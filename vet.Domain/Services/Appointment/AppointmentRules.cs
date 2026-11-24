@@ -240,6 +240,13 @@ public static class AppointmentRules
                && paymentExpiresAt.HasValue
                && currentUtc >= paymentExpiresAt.Value;
     }
+    //esatdo
+    public static void ValidateStart(string status)
+    {
+        if (status != "CONFIRMED")
+            throw new ArgumentException(
+                "Solo se pueden iniciar citas confirmadas.");
+    }
 
 
 }
