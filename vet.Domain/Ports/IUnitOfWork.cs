@@ -1,4 +1,6 @@
-﻿namespace vet.Domain.Ports;
+﻿using vet.Domain.Entities;
+
+namespace vet.Domain.Ports;
 
 public interface IUnitOfWork
 {
@@ -20,5 +22,18 @@ public interface IUnitOfWork
     //cashs esion
     Task<vet.Domain.Entities.CashSession?> GetCashSessionForUpdateAsync(
         long cashSessionId,
+        CancellationToken cancellationToken = default);
+    
+    Task<ProductBatch?> GetProductBatchForUpdateAsync(
+        long batchId,
+        CancellationToken cancellationToken = default);
+
+    Task<long> GetNextInternalReceiptNumberAsync(
+        long companyId,
+        string series,
+        CancellationToken cancellationToken = default);
+    
+    Task<Sale?> GetSaleForUpdateAsync(
+        long saleId,
         CancellationToken cancellationToken = default);
 }

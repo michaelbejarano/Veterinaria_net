@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using vet.Application.UseCases.Auth.Commands;
 using vet.Application.DTOs.Auth;
-using Microsoft.AspNetCore.Authorization;
 using vet.Application.UseCases.Auth.Querys;
 
 namespace vet_api.Controllers;
