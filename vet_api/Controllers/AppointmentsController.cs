@@ -3,8 +3,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using vet.Application.UseCases.Appointment.Commands;
 using vet.Application.UseCases.Appointment.Queries;
+using vet.Application.UseCases.Consultation.Commands;
 using vet.Application.UseCases.VisitService.Commands;
-
+using vet.Application.UseCases.Diagnosis.Commands;
 namespace vet_api.Controllers;
 
 [ApiController]
@@ -202,6 +203,77 @@ public class AppointmentsController : ControllerBase
         });
     }
 
+    [HttpPost("{id:long}/consultation")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateConsultation(
+        long id,
+        [FromBody] CreateConsultationCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.AppointmentId = id;
+
+        var consultationId = await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            new
+            {
+                consultationId,
+                message = "Consulta médica registrada correctamente."
+            });
+    }
+    
+    [HttpPut("{id:long}/consultation")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateConsultation(
+        long id,
+        [FromBody] UpdateConsultationCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.AppointmentId = id;
+
+        await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "Consulta médica actualizada correctamente."
+        });
+    }
+    
+    [HttpPost("{id:long}/consultation/diagnosis")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CreateDiagnosis(
+        long id,
+        [FromBody] CreateDiagnosisCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.AppointmentId = id;
+
+        var diagnosisId = await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            new
+            {
+                diagnosisId,
+                message = "Diagnóstico registrado correctamente."
+            });
+    }
 
 
 }
