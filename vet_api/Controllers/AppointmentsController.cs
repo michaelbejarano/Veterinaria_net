@@ -3,9 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using vet.Application.UseCases.Appointment.Commands;
 using vet.Application.UseCases.Appointment.Queries;
-using vet.Application.UseCases.Consultation.Commands;
-using vet.Application.UseCases.VisitService.Commands;
-using vet.Application.UseCases.Diagnosis.Commands;
+
 namespace vet_api.Controllers;
 
 [ApiController]
@@ -31,7 +29,7 @@ public class AppointmentsController : ControllerBase
             StatusCodes.Status201Created,
             new { id });
     }
-    
+
     [HttpGet]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAll()
@@ -41,8 +39,7 @@ public class AppointmentsController : ControllerBase
 
         return Ok(appointments);
     }
-    
-    
+
     [HttpGet("{id:long}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -60,7 +57,6 @@ public class AppointmentsController : ControllerBase
         return Ok(appointment);
     }
 
-    
     [HttpGet("availability")]
     public async Task<IActionResult> GetAvailability(
         [FromQuery] long employeeId,
@@ -77,7 +73,7 @@ public class AppointmentsController : ControllerBase
 
         return Ok(result);
     }
-    
+
     [HttpPatch("{id:long}/cancel")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -95,6 +91,7 @@ public class AppointmentsController : ControllerBase
             message = "La cita fue cancelada correctamente."
         });
     }
+
     [HttpPost("{id:long}/deposit")]
     [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -115,8 +112,7 @@ public class AppointmentsController : ControllerBase
                 message = "Adelanto registrado y cita confirmada."
             });
     }
-    
-    //esatdo
+
     [HttpPatch("{id:long}/start")]
     [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -138,165 +134,22 @@ public class AppointmentsController : ControllerBase
             message = "La atención ha iniciado correctamente."
         });
     }
-    
-    [HttpPatch("{id:long}/services/{visitServiceId:long}/complete")]
+    [HttpPatch("{id:long}/complete")]
     [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CompleteService(
+    public async Task<IActionResult> Complete(
         long id,
-        long visitServiceId,
-        [FromBody] CompleteVisitServiceCommand command,
         CancellationToken cancellationToken)
     {
-        command.AppointmentId = id;
-        command.VisitServiceId = visitServiceId;
-
         var result = await _mediator.Send(
-            command,
+            new CompleteAppointmentCommand
+            {
+                AppointmentId = id
+            },
             cancellationToken);
 
         return Ok(result);
     }
-    [HttpPost("{id:long}/services")]
-    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> AddService(
-        long id,
-        [FromBody] AddVisitServiceCommand command,
-        CancellationToken cancellationToken)
-    {
-        command.AppointmentId = id;
-
-        var result = await _mediator.Send(
-            command,
-            cancellationToken);
-
-        return StatusCode(
-            StatusCodes.Status201Created,
-            result);
-    }
-    [HttpPatch("{id:long}/services/{visitServiceId:long}/cancel")]
-    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CancelService(
-        long id,
-        long visitServiceId,
-        CancellationToken cancellationToken)
-    {
-        await _mediator.Send(
-            new CancelVisitServiceCommand
-            {
-                AppointmentId = id,
-                VisitServiceId = visitServiceId
-            },
-            cancellationToken);
-
-        return Ok(new
-        {
-            message = "El servicio fue anulado correctamente."
-        });
-    }
-
-    [HttpPost("{id:long}/consultation")]
-    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateConsultation(
-        long id,
-        [FromBody] CreateConsultationCommand command,
-        CancellationToken cancellationToken)
-    {
-        command.AppointmentId = id;
-
-        var consultationId = await _mediator.Send(
-            command,
-            cancellationToken);
-
-        return StatusCode(
-            StatusCodes.Status201Created,
-            new
-            {
-                consultationId,
-                message = "Consulta médica registrada correctamente."
-            });
-    }
-    
-    [HttpPut("{id:long}/consultation")]
-    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateConsultation(
-        long id,
-        [FromBody] UpdateConsultationCommand command,
-        CancellationToken cancellationToken)
-    {
-        command.AppointmentId = id;
-
-        await _mediator.Send(
-            command,
-            cancellationToken);
-
-        return Ok(new
-        {
-            message = "Consulta médica actualizada correctamente."
-        });
-    }
-    
-    [HttpPost("{id:long}/consultation/diagnosis")]
-    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> CreateDiagnosis(
-        long id,
-        [FromBody] CreateDiagnosisCommand command,
-        CancellationToken cancellationToken)
-    {
-        command.AppointmentId = id;
-
-        var diagnosisId = await _mediator.Send(
-            command,
-            cancellationToken);
-
-        return StatusCode(
-            StatusCodes.Status201Created,
-            new
-            {
-                diagnosisId,
-                message = "Diagnóstico registrado correctamente."
-            });
-    }
-    
-    //diagnosis medico
-    [HttpPut("{id:long}/consultation/diagnosis")]
-    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateDiagnosis(
-        long id,
-        [FromBody] UpdateDiagnosisCommand command,
-        CancellationToken cancellationToken)
-    {
-        command.AppointmentId = id;
-
-        await _mediator.Send(
-            command,
-            cancellationToken);
-
-        return Ok(new
-        {
-            message = "Diagnóstico actualizado correctamente."
-        });
-    }
-
-
 }

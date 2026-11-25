@@ -247,6 +247,36 @@ public static class AppointmentRules
             throw new ArgumentException(
                 "Solo se pueden iniciar citas confirmadas.");
     }
+    
+    //finalaizacion de la anteicon
+    public static void ValidateCompletion(
+        string appointmentStatus,
+        string visitStatus,
+        bool hasPendingServices,
+        bool hasCompletedServices,
+        bool requiresConsultation,
+        bool hasConsultation)
+    {
+        if (appointmentStatus != "IN_PROGRESS")
+            throw new ArgumentException(
+                "La cita debe estar en curso.");
+
+        if (visitStatus != "IN_PROGRESS")
+            throw new ArgumentException(
+                "La atención debe estar en curso.");
+
+        if (hasPendingServices)
+            throw new ArgumentException(
+                "Existen servicios pendientes de realizar o anular.");
+
+        if (!hasCompletedServices)
+            throw new ArgumentException(
+                "Debe existir al menos un servicio completado.");
+
+        if (requiresConsultation && !hasConsultation)
+            throw new ArgumentException(
+                "Debe registrar la consulta médica antes de finalizar.");
+    }
 
 
 }

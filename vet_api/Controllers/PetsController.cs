@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using vet.Application.UseCases.Pet.Commands;
+using vet.Application.UseCases.Pet.Queries;
 using vet.Application.UseCases.Pet.Querys;
 
 namespace vet_api.Controllers;
@@ -87,4 +88,22 @@ public class PetsController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("{id:long}/clinical-history")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetClinicalHistory(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new GetPetClinicalHistoryQuery
+            {
+                PetId = id
+            },
+            cancellationToken);
+
+        return Ok(result);
+    }
 }
