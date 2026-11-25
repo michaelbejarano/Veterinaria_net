@@ -2,6 +2,8 @@ using MediatR;
 using vet.Domain.Entities;
 using vet.Domain.Ports;
 using vet.Domain.Services;
+using vet.Domain.Services.Inventory;
+using vet.Domain.Services.Sale;
 
 namespace vet.Application.UseCases.Sale.Commands;
 
@@ -151,7 +153,7 @@ public class ConfirmSaleCommandHandler
                     .Where(i => i.VisitServiceId.HasValue))
                 {
                     var visitService = await _unitOfWork
-                        .Repository<VisitService>()
+                        .Repository<Domain.Entities.VisitService>()
                         .GetByIdAsync(item.VisitServiceId!.Value);
 
                     if (visitService == null ||

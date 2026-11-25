@@ -79,7 +79,7 @@ public class StartAppointmentCommandHandler
                 foreach (var service in appointmentServices)
                 {
                     visit.VisitServices.Add(
-                        new VisitService
+                        new Domain.Entities.VisitService
                         {
                             ServiceId = service.ServiceId,
                             EmployeeId = appointment.EmployeeId,

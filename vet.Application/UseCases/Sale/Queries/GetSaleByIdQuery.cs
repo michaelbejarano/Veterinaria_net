@@ -3,6 +3,7 @@ using MediatR;
 using vet.Domain.Entities;
 using vet.Domain.Ports;
 using vet.Domain.Services;
+using vet.Domain.Services.Sale;
 
 namespace vet.Application.UseCases.Sale.Queries;
 

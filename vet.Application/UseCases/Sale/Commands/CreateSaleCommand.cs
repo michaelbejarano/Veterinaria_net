@@ -3,6 +3,7 @@ using MediatR;
 using vet.Domain.Entities;
 using vet.Domain.Ports;
 using vet.Domain.Services;
+using vet.Domain.Services.Sale;
 
 namespace vet.Application.UseCases.Sale.Commands;
 
@@ -170,7 +171,7 @@ public class CreateSaleCommandHandler
                                 "El servicio está repetido en la venta.");
 
                         var visitService = await _unitOfWork
-                            .Repository<VisitService>()
+                            .Repository<Domain.Entities.VisitService>()
                             .GetByIdAsync(visitServiceId);
 
                         if (visitService == null)

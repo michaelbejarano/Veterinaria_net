@@ -2,6 +2,7 @@ using MediatR;
 using vet.Domain.Ports;
 using vet.Domain.Services;
 using vet.Domain.Entities;
+using vet.Domain.Services.Inventory;
 
 namespace vet.Application.UseCases.Inventory.Queries;
 

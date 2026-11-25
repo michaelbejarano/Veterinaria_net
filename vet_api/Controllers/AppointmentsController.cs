@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using vet.Application.UseCases.Appointment.Commands;
 using vet.Application.UseCases.Appointment.Queries;
+using vet.Application.UseCases.VisitService.Commands;
 
 namespace vet_api.Controllers;
 
@@ -134,6 +135,70 @@ public class AppointmentsController : ControllerBase
         {
             visitId,
             message = "La atención ha iniciado correctamente."
+        });
+    }
+    
+    [HttpPatch("{id:long}/services/{visitServiceId:long}/complete")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CompleteService(
+        long id,
+        long visitServiceId,
+        [FromBody] CompleteVisitServiceCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.AppointmentId = id;
+        command.VisitServiceId = visitServiceId;
+
+        var result = await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return Ok(result);
+    }
+    [HttpPost("{id:long}/services")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddService(
+        long id,
+        [FromBody] AddVisitServiceCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.AppointmentId = id;
+
+        var result = await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return StatusCode(
+            StatusCodes.Status201Created,
+            result);
+    }
+    [HttpPatch("{id:long}/services/{visitServiceId:long}/cancel")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> CancelService(
+        long id,
+        long visitServiceId,
+        CancellationToken cancellationToken)
+    {
+        await _mediator.Send(
+            new CancelVisitServiceCommand
+            {
+                AppointmentId = id,
+                VisitServiceId = visitServiceId
+            },
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "El servicio fue anulado correctamente."
         });
     }
 

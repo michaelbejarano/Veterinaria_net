@@ -1,4 +1,6 @@
-namespace vet.Domain.Services;
+using vet.Domain.Services.Inventory;
+
+namespace vet.Domain.Services.Sale;
 
 public static class SaleRules
 {
@@ -29,13 +31,9 @@ public static class SaleRules
         decimal quantity,
         decimal availableStock)
     {
-        if (quantity <= 0)
-            throw new ArgumentException(
-                "La cantidad debe ser mayor que cero.");
-
-        if (availableStock < quantity)
-            throw new ArgumentException(
-                "Stock insuficiente para realizar la venta.");
+        InventoryRules.ValidateAvailableStock(
+            quantity,
+            availableStock);
     }
 
     public static void ValidateCashSession(string status)

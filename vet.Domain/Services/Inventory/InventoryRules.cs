@@ -1,4 +1,4 @@
-namespace vet.Domain.Services;
+namespace vet.Domain.Services.Inventory;
 
 public static class InventoryRules
 {
@@ -24,5 +24,18 @@ public static class InventoryRules
             "OUT" or "ADJUSTMENT_OUT" => -m.Quantity,
             _ => 0m
         });
+    }
+
+    public static void ValidateAvailableStock(
+        decimal quantity,
+        decimal availableStock)
+    {
+        if (quantity <= 0)
+            throw new ArgumentException(
+                "La cantidad debe ser mayor que cero.");
+
+        if (availableStock < quantity)
+            throw new ArgumentException(
+                "Stock insuficiente para realizar la operación.");
     }
 }
