@@ -274,6 +274,29 @@ public class AppointmentsController : ControllerBase
                 message = "Diagnóstico registrado correctamente."
             });
     }
+    
+    //diagnosis medico
+    [HttpPut("{id:long}/consultation/diagnosis")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateDiagnosis(
+        long id,
+        [FromBody] UpdateDiagnosisCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.AppointmentId = id;
+
+        await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "Diagnóstico actualizado correctamente."
+        });
+    }
 
 
 }
