@@ -197,7 +197,8 @@ public class CreateAppointmentCommandHandler
             ReservedPrice = reservedPrice,
             DepositPercent = AppointmentRules.DepositPercent,
             RequiredDeposit = requiredDeposit,
-            CreatedAt = DateTime.UtcNow,
+            PaymentExpiresAt = paymentExpiresAt,
+            CreatedAt = createdAt,
 
             AppointmentServices = services
                 .Select(service => new AppointmentServiceEntity

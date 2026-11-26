@@ -381,7 +381,7 @@ public class CompleteVisitServiceCommandHandler
                 // ========================================
 
                 var rules = await _unitOfWork
-                    .Repository<CommissionRule>()
+                    .Repository<Domain.Entities.CommissionRule>()
                     .FindAsync(r =>
                         r.EmployeeServiceId == employeeService.Id);
 

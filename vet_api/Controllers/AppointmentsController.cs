@@ -75,20 +75,21 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpPatch("{id:long}/cancel")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> Cancel(long id)
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
+    public async Task<IActionResult> Cancel(
+        long id,
+        CancellationToken cancellationToken)
     {
         await _mediator.Send(
             new CancelAppointmentCommand
             {
                 AppointmentId = id
-            });
+            },
+            cancellationToken);
 
         return Ok(new
         {
-            message = "La cita fue cancelada correctamente."
+            message = "Cita cancelada correctamente."
         });
     }
 
@@ -111,6 +112,24 @@ public class AppointmentsController : ControllerBase
                 paymentId,
                 message = "Adelanto registrado y cita confirmada."
             });
+    }
+    [HttpPatch("{id:long}/no-show")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> MarkNoShow(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new MarkAppointmentNoShowCommand
+            {
+                AppointmentId = id
+            },
+            cancellationToken);
+
+        return Ok(result);
     }
 
     [HttpPatch("{id:long}/start")]

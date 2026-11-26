@@ -60,7 +60,7 @@ public static class AppointmentRules
     public static void ValidateScheduleBlocks(
         DateTime startAt,
         DateTime endAt,
-        IEnumerable<ScheduleBlock> blocks)
+        IEnumerable<Entities.ScheduleBlock> blocks)
     {
         var hasConflict = blocks.Any(b =>
             startAt < b.EndAt &&
@@ -156,11 +156,13 @@ public static class AppointmentRules
 
     public static void ValidateCancellation(string status)
     {
-        if (status != "PENDING_PAYMENT")
+        if (status != "PENDING_PAYMENT" &&
+            status != "CONFIRMED")
         {
             throw new ArgumentException(
-                "Por ahora solo se pueden cancelar citas pendientes de pago.");
+                "Solo se pueden cancelar citas pendientes de pago o confirmadas.");
         }
+    
     }
 
     public static void ValidateDepositPayment(
@@ -277,6 +279,38 @@ public static class AppointmentRules
             throw new ArgumentException(
                 "Debe registrar la consulta médica antes de finalizar.");
     }
+    public static void ValidateNoShow(
+        string status,
+        DateTime endAt,
+        DateTime now)
+    {
+        if (status != "CONFIRMED")
+            throw new ArgumentException(
+                "Solo se puede registrar la inasistencia de una cita confirmada.");
 
+        if (now < endAt)
+            throw new ArgumentException(
+                "Debe finalizar el horario reservado para registrar la inasistencia.");
+    }
+
+    public static void ValidateDepositForfeiture(
+        decimal amount,
+        bool alreadyForfeited,
+        decimal appliedAmount)
+    {
+        if (amount <= 0)
+            throw new ArgumentException(
+                "El adelanto debe ser mayor que cero.");
+
+        if (alreadyForfeited)
+            throw new ArgumentException(
+                "El adelanto ya fue retenido.");
+
+        if (appliedAmount > 0)
+            throw new ArgumentException(
+                "No se puede retener un adelanto aplicado a una venta.");
+    }
 
 }
+
+
