@@ -70,7 +70,7 @@ public class GetAllSalesQueryHandler
 
         // 2. Obtener propietarios
         var owners = await _unitOfWork
-            .Repository<Owner>()
+            .Repository<Domain.Entities.Owner>()
             .FindAsync(o => ownerIds.Contains(o.Id));
 
         var ownersById = owners.ToDictionary(o => o.Id);
@@ -84,7 +84,7 @@ public class GetAllSalesQueryHandler
 
         // 4. Obtener recibos internos
         var invoices = await _unitOfWork
-            .Repository<Invoice>()
+            .Repository<Domain.Entities.Invoice>()
             .FindAsync(i =>
                 i.SaleId.HasValue &&
                 saleIds.Contains(i.SaleId.Value) &&

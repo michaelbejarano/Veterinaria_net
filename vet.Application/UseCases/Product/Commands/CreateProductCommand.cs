@@ -34,10 +34,25 @@ public class CreateProductCommandHandler
             request.Type,
             request.Unit,
             request.SalePrice);
+        
+        var sku = string.IsNullOrWhiteSpace(request.Sku)
+            ? null
+            : request.Sku.Trim();
+
+        if (sku is not null)
+        {
+            var existing = await _unitOfWork
+                .Repository<ProductEntity>()
+                .FindAsync(p => p.Sku == sku);
+
+            if (existing.Any())
+                throw new ArgumentException(
+                    "Ya existe un producto con ese SKU.");
+        }
 
         var product = new ProductEntity
         {
-            Sku = request.Sku,
+            Sku = sku,
             Name = request.Name.Trim(),
             Type = request.Type,
             Unit = request.Unit.Trim(),

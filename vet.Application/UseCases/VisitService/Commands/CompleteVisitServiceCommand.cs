@@ -5,6 +5,7 @@ using vet.Domain.Services;
 using vet.Domain.Services.Commission;
 using vet.Domain.Services.Inventory;
 using VisitServiceEntity = vet.Domain.Entities.VisitService;
+using ProductBatchEntity = vet.Domain.Entities.ProductBatch;
 
 namespace vet.Application.UseCases.VisitService.Commands;
 
@@ -157,7 +158,7 @@ public class CompleteVisitServiceCommandHandler
                 // ========================================
 
                 var supplies = (await _unitOfWork
-                    .Repository<ServiceSupply>()
+                    .Repository<Domain.Entities.ServiceSupply>()
                     .FindAsync(s =>
                         s.ServiceId == visitService.ServiceId))
                     .ToList();
@@ -186,21 +187,21 @@ public class CompleteVisitServiceCommandHandler
                 }
 
                 // ========================================
-                // 5. BLOQUEAR LOTES
-                // ========================================
+// 5. BLOQUEAR LOTES
+// ========================================
 
-                var lockedBatches = new List<Domain.Entities.ProductBatch>();
+                var lockedBatches = new List<ProductBatchEntity>();
 
                 if (productIds.Count > 0)
                 {
                     var batches = await _unitOfWork
-                        .Repository<Domain.Entities.ProductBatch>()
+                        .Repository<ProductBatchEntity>()
                         .FindAsync(b =>
                             productIds.Contains(b.ProductId));
 
                     foreach (var batch in batches.OrderBy(b => b.Id))
                     {
-                        var lockedBatch = await _unitOfWork
+                        ProductBatchEntity? lockedBatch = await _unitOfWork
                             .GetProductBatchForUpdateAsync(
                                 batch.Id,
                                 ct);

@@ -1,6 +1,7 @@
-
 using MediatR;
 using vet.Domain.Ports;
+using vet.Domain.Services;
+
 using CashRegisterEntity = vet.Domain.Entities.CashRegister;
 using CashSessionEntity = vet.Domain.Entities.CashSession;
 
@@ -10,8 +11,6 @@ public class OpenCashSessionCommand : IRequest<long>
 {
     public long CashRegisterId { get; set; }
     public decimal OpeningFloat { get; set; }
-
-    // Lo asigna la API desde el usuario autenticado.
     public long OpenedByUserId { get; set; }
 }
 
@@ -20,7 +19,8 @@ public class OpenCashSessionCommandHandler
 {
     private readonly IUnitOfWork _unitOfWork;
 
-    public OpenCashSessionCommandHandler(IUnitOfWork unitOfWork)
+    public OpenCashSessionCommandHandler(
+        IUnitOfWork unitOfWork)
     {
         _unitOfWork = unitOfWork;
     }
@@ -30,37 +30,44 @@ public class OpenCashSessionCommandHandler
         CancellationToken cancellationToken)
     {
         if (request.CashRegisterId <= 0)
-            throw new ArgumentException("La caja es obligatoria.");
-
-        if (request.OpeningFloat < 0)
             throw new ArgumentException(
-                "El fondo inicial no puede ser negativo.");
+                "La caja es obligatoria.");
 
         if (request.OpenedByUserId <= 0)
             throw new ArgumentException(
                 "El usuario autenticado no es válido.");
+
+        CashSessionRules.ValidateMoney(
+            request.OpeningFloat);
+
+        // 1. Verificar caja
 
         var cashRegister = await _unitOfWork
             .Repository<CashRegisterEntity>()
             .GetByIdAsync(request.CashRegisterId);
 
         if (cashRegister is null)
-            throw new KeyNotFoundException("La caja no existe.");
+            throw new KeyNotFoundException(
+                "La caja no existe.");
 
         if (!cashRegister.IsActive)
-            throw new ArgumentException("La caja está inactiva.");
+            throw new ArgumentException(
+                "La caja está inactiva.");
 
-        var sessions = await _unitOfWork
-            .Repository<CashSessionEntity>()
-            .GetAllAsync();
+        // 2. Verificar sesión abierta
 
-        if (sessions.Any(s =>
-                s.CashRegisterId == request.CashRegisterId &&
-                s.Status == "OPEN"))
-        {
+        var repository = _unitOfWork
+            .Repository<CashSessionEntity>();
+
+        var sessions = await repository.FindAsync(s =>
+            s.CashRegisterId == request.CashRegisterId &&
+            s.Status == "OPEN");
+
+        if (sessions.Any())
             throw new ArgumentException(
                 "Esta caja ya tiene una sesión abierta.");
-        }
+
+        // 3. Abrir sesión
 
         var session = new CashSessionEntity
         {
@@ -71,11 +78,10 @@ public class OpenCashSessionCommandHandler
             Status = "OPEN"
         };
 
-        await _unitOfWork
-            .Repository<CashSessionEntity>()
-            .AddAsync(session);
+        await repository.AddAsync(session);
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        await _unitOfWork.SaveChangesAsync(
+            cancellationToken);
 
         return session.Id;
     }

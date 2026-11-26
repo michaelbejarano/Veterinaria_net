@@ -174,8 +174,9 @@ public partial class VetCareContext : DbContext
                 .HasDefaultValueSql("'PENDING_PAYMENT'::character varying")
                 .HasColumnName("status");
 
-            entity.HasOne(d => d.Appointment).WithOne(p => p.AppointmentReschedule)
-                .HasForeignKey<AppointmentReschedule>(d => d.AppointmentId)
+            entity.HasOne(d => d.Appointment)
+                .WithMany(p => p.AppointmentReschedules)
+                .HasForeignKey(d => d.AppointmentId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("appointment_reschedules_appointment_id_fkey");
         });
@@ -350,8 +351,9 @@ public partial class VetCareContext : DbContext
                 .HasDefaultValueSql("'OPEN'::character varying")
                 .HasColumnName("status");
 
-            entity.HasOne(d => d.CashRegister).WithOne(p => p.CashSession)
-                .HasForeignKey<CashSession>(d => d.CashRegisterId)
+            entity.HasOne(d => d.CashRegister)
+                .WithMany(p => p.CashSessions)
+                .HasForeignKey(d => d.CashRegisterId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("cash_sessions_cash_register_id_fkey");
 

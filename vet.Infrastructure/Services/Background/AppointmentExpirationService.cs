@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using vet.Application.UseCases.Appointment.Commands;
+using vet.Application.UseCases.AppointmentReschedule.Commands;
 
 namespace vet.Infrastructure.Services.Background;
 
@@ -25,27 +26,48 @@ public class AppointmentExpirationService : BackgroundService
         using var timer = new PeriodicTimer(
             TimeSpan.FromMinutes(1));
 
-        // Primera ejecución al iniciar la aplicación
-        await ExpireAppointmentsAsync(stoppingToken);
-
-        while (await timer.WaitForNextTickAsync(stoppingToken))
+        try
         {
-            await ExpireAppointmentsAsync(stoppingToken);
+            // Primera ejecución al iniciar la aplicación
+
+            await ProcessExpirationsAsync(stoppingToken);
+
+            // Ejecutar cada minuto
+
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await ProcessExpirationsAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException)
+            when (stoppingToken.IsCancellationRequested)
+        {
+            // Cierre normal de la aplicación
         }
     }
+
+    private async Task ProcessExpirationsAsync(
+        CancellationToken cancellationToken)
+    {
+        await ExpireAppointmentsAsync(cancellationToken);
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await ExpireReschedulesAsync(cancellationToken);
+    }
+
+    // Vencimiento de citas pendientes de adelanto
 
     private async Task ExpireAppointmentsAsync(
         CancellationToken cancellationToken)
     {
         try
         {
-            // Crear un scope para resolver MediatR y UnitOfWork
             using var scope = _scopeFactory.CreateScope();
 
             var mediator = scope.ServiceProvider
                 .GetRequiredService<IMediator>();
 
-            // Ejecutar el caso de uso de Application
             var expiredCount = await mediator.Send(
                 new ExpirePendingAppointmentsCommand(),
                 cancellationToken);
@@ -60,13 +82,49 @@ public class AppointmentExpirationService : BackgroundService
         catch (OperationCanceledException)
             when (cancellationToken.IsCancellationRequested)
         {
-            // Cierre normal de la aplicación
+            throw;
         }
         catch (Exception ex)
         {
             _logger.LogError(
                 ex,
                 "Error al procesar el vencimiento de citas.");
+        }
+    }
+
+    // Vencimiento de reprogramaciones pendientes de pago
+
+    private async Task ExpireReschedulesAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+
+            var mediator = scope.ServiceProvider
+                .GetRequiredService<IMediator>();
+
+            var expiredCount = await mediator.Send(
+                new ExpireAppointmentReschedulesCommand(),
+                cancellationToken);
+
+            if (expiredCount > 0)
+            {
+                _logger.LogInformation(
+                    "VetCare: {Count} reprogramaciones expiradas.",
+                    expiredCount);
+            }
+        }
+        catch (OperationCanceledException)
+            when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error al procesar el vencimiento de reprogramaciones.");
         }
     }
 }

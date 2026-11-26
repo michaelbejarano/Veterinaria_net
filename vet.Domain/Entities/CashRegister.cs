@@ -13,7 +13,8 @@ public partial class CashRegister
 
     public bool IsActive { get; set; }
 
-    public virtual CashSession? CashSession { get; set; }
+    public virtual ICollection<CashSession> CashSessions
+    { get; set; } = new List<CashSession>();
 
     public virtual Company Company { get; set; } = null!;
 }

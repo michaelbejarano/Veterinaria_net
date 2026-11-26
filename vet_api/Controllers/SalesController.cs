@@ -104,4 +104,23 @@ public class SalesController : ControllerBase
 
         return Ok(result);
     }
+    
+    [HttpPatch("{id:long}/cancel")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    public async Task<IActionResult> Cancel(
+        long id,
+        [FromBody] CancelSaleCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.SaleId = id;
+
+        await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "Venta anulada correctamente."
+        });
+    }
 }

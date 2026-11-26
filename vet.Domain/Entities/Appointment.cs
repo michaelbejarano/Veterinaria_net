@@ -27,7 +27,8 @@ public partial class Appointment
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual AppointmentReschedule? AppointmentReschedule { get; set; }
+    public virtual ICollection<AppointmentReschedule> AppointmentReschedules { get; set; }
+        = new List<AppointmentReschedule>();
 
     public virtual ICollection<AppointmentService> AppointmentServices { get; set; } = new List<AppointmentService>();
 

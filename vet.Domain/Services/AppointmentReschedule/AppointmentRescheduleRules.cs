@@ -38,6 +38,27 @@ public static class AppointmentRescheduleRules
                 "Debe conservar la duración original de la cita.");
     }
 
+    public static DateTime CalculatePaymentExpiration(
+        DateTime createdAt,
+        DateTime previousStart,
+        DateTime newStart)
+    {
+        var expiresAt =
+            AppointmentRules.CalculatePaymentExpiration(createdAt);
+
+        if (previousStart < expiresAt)
+            expiresAt = previousStart;
+
+        if (newStart < expiresAt)
+            expiresAt = newStart;
+
+        if (expiresAt <= createdAt)
+            throw new ArgumentException(
+                "No existe un plazo válido para realizar el pago.");
+
+        return expiresAt;
+    }
+
     public static void ValidatePayment(
         string appointmentStatus,
         string rescheduleStatus,
@@ -69,43 +90,18 @@ public static class AppointmentRescheduleRules
 
     public static void ValidateCancellation(string status)
     {
-        if (status != "PENDING_PAYMENT" &&
-            status != "CONFIRMED")
-        {
+        if (status != "PENDING_PAYMENT")
             throw new ArgumentException(
-                "Solo se pueden cancelar citas pendientes de pago o confirmadas.");
-        }
+                "Solo se pueden cancelar reprogramaciones pendientes de pago.");
     }
-    
-    public static void ValidateNoShow(
+
+    public static bool ShouldExpire(
         string status,
-        DateTime endAt,
+        DateTime? expiresAt,
         DateTime now)
     {
-        if (status != "CONFIRMED")
-            throw new ArgumentException(
-                "Solo se puede registrar la inasistencia de una cita confirmada.");
-
-        if (now < endAt)
-            throw new ArgumentException(
-                "Debe finalizar el horario reservado para registrar la inasistencia.");
-    }
-
-    public static void ValidateDepositForfeiture(
-        decimal amount,
-        bool alreadyForfeited,
-        decimal appliedAmount)
-    {
-        if (amount <= 0)
-            throw new ArgumentException(
-                "El adelanto debe ser mayor que cero.");
-
-        if (alreadyForfeited)
-            throw new ArgumentException(
-                "El adelanto ya fue retenido.");
-
-        if (appliedAmount > 0)
-            throw new ArgumentException(
-                "No se puede retener un adelanto aplicado a una venta.");
+        return status == "PENDING_PAYMENT"
+               && expiresAt.HasValue
+               && now >= expiresAt.Value;
     }
 }

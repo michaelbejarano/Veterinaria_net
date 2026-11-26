@@ -76,7 +76,7 @@ public class CreateSaleCommandHandler
 
                 // 2. Validar propietario
                 var owner = await _unitOfWork
-                    .Repository<Owner>()
+                    .Repository<Domain.Entities.Owner>()
                     .GetByIdAsync(request.OwnerId);
 
                 if (owner == null)

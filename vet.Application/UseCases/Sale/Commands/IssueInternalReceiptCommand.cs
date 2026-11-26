@@ -87,7 +87,7 @@ public class IssueInternalReceiptCommandHandler
 
                 // 3. Evitar recibos duplicados
                 var existingInvoices = await _unitOfWork
-                    .Repository<Invoice>()
+                    .Repository<Domain.Entities.Invoice>()
                     .FindAsync(i =>
                         i.SaleId == sale.Id &&
                         i.Type == "INTERNAL");
@@ -98,7 +98,7 @@ public class IssueInternalReceiptCommandHandler
 
                 // 4. Obtener propietario
                 var owner = await _unitOfWork
-                    .Repository<Owner>()
+                    .Repository<Domain.Entities.Owner>()
                     .GetByIdAsync(sale.OwnerId);
 
                 if (owner == null)
@@ -137,7 +137,7 @@ public class IssueInternalReceiptCommandHandler
                         ct);
 
                 // 8. Crear recibo interno
-                var invoice = new Invoice
+                var invoice = new Domain.Entities.Invoice
                 {
                     CompanyId = sale.CompanyId,
                     SaleId = sale.Id,
@@ -159,7 +159,7 @@ public class IssueInternalReceiptCommandHandler
                 };
 
                 await _unitOfWork
-                    .Repository<Invoice>()
+                    .Repository<Domain.Entities.Invoice>()
                     .AddAsync(invoice);
 
                 await _unitOfWork.SaveChangesAsync(ct);

@@ -62,7 +62,10 @@ public static class SaleRules
             throw new ArgumentException(
                 "IGV inválido.");
 
-        return quantity * unitPrice - discount + igv;
+        return decimal.Round(
+            quantity * unitPrice - discount + igv,
+            2,
+            MidpointRounding.AwayFromZero);
     }
 
     // Calcula cuánto falta pagar después del adelanto
@@ -104,5 +107,12 @@ public static class SaleRules
             throw new ArgumentException(
                 "Solo se pueden emitir recibos de ventas confirmadas.");
         }
+    }
+    
+    public static void ValidateSaleCancellation(string status)
+    {
+        if (status != "OPEN")
+            throw new ArgumentException(
+                "Solo se pueden anular ventas abiertas.");
     }
 }

@@ -167,4 +167,63 @@ public class UnitOfWork : IUnitOfWork
                 $"SELECT * FROM vetcare.sales WHERE id = {saleId} FOR UPDATE")
             .SingleOrDefaultAsync(cancellationToken);
     }
+    
+    public async Task<AppointmentReschedule?> GetRescheduleForUpdateAsync(
+        long rescheduleId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_context.Database.CurrentTransaction == null)
+        {
+            throw new InvalidOperationException(
+                "El bloqueo de la reprogramación requiere una transacción activa.");
+        }
+
+        return await _context.Set<AppointmentReschedule>()
+            .FromSqlInterpolated(
+                $"""
+                 SELECT *
+                 FROM vetcare.appointment_reschedules
+                 WHERE id = {rescheduleId}
+                 FOR UPDATE
+                 """)
+            .AsTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+    public async Task<Employee?> GetEmployeeForUpdateAsync(
+        long employeeId,
+        CancellationToken cancellationToken = default)
+    {
+        if (_context.Database.CurrentTransaction is null)
+            throw new InvalidOperationException(
+                "Se requiere una transacción activa.");
+
+        return await _context.Set<Employee>()
+            .FromSqlInterpolated($"""
+                                  SELECT *
+                                  FROM vetcare.employees
+                                  WHERE id = {employeeId}
+                                  FOR UPDATE
+                                  """)
+            .AsTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+    public async Task<CommissionSettlement?>
+        GetCommissionSettlementForUpdateAsync(
+            long settlementId,
+            CancellationToken cancellationToken = default)
+    {
+        if (_context.Database.CurrentTransaction is null)
+            throw new InvalidOperationException(
+                "Se requiere una transacción activa.");
+
+        return await _context.Set<CommissionSettlement>()
+            .FromSqlInterpolated($"""
+                                  SELECT *
+                                  FROM vetcare.commission_settlements
+                                  WHERE id = {settlementId}
+                                  FOR UPDATE
+                                  """)
+            .AsTracking()
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 }

@@ -36,4 +36,16 @@ public interface IUnitOfWork
     Task<Sale?> GetSaleForUpdateAsync(
         long saleId,
         CancellationToken cancellationToken = default);
+    
+    Task<AppointmentReschedule?> GetRescheduleForUpdateAsync(
+        long rescheduleId,
+        CancellationToken cancellationToken = default);
+    Task<Employee?> GetEmployeeForUpdateAsync(
+        long employeeId,
+        CancellationToken cancellationToken = default);
+
+    Task<CommissionSettlement?> GetCommissionSettlementForUpdateAsync(
+        long settlementId,
+        CancellationToken cancellationToken = default);
+    
 }

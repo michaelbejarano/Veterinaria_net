@@ -135,7 +135,7 @@ public class GetSaleByIdQueryHandler
 
         // 2. Obtener propietario
         var owner = await _unitOfWork
-            .Repository<Owner>()
+            .Repository<Domain.Entities.Owner>()
             .GetByIdAsync(sale.OwnerId);
 
         // 3. Obtener detalles
@@ -197,7 +197,7 @@ public class GetSaleByIdQueryHandler
 
         // 6. Obtener recibo interno
         var invoices = await _unitOfWork
-            .Repository<Invoice>()
+            .Repository<Domain.Entities.Invoice>()
             .FindAsync(i =>
                 i.SaleId == sale.Id &&
                 i.Type == "INTERNAL");

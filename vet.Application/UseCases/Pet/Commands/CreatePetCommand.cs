@@ -51,7 +51,7 @@ public class CreatePetCommandHandler
                 "La fecha de nacimiento no puede ser futura.");
 
         var owner = await _unitOfWork
-            .Repository<Owner>()
+            .Repository<Domain.Entities.Owner>()
             .GetByIdAsync(request.OwnerId);
 
         if (owner is null)

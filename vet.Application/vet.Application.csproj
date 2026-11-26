@@ -6,7 +6,6 @@
 
     <ItemGroup>
       <Folder Include="Middleware\" />
-      <Folder Include="UseCases\Inventory\Commands\" />
     </ItemGroup>
 
     <ItemGroup>
