@@ -88,8 +88,8 @@ public class CreateAppointmentRescheduleCommandHandler
             // 5. Validar trabajador
 
             var employee = await _unitOfWork
-                .Repository<EmployeeEntity>()
-                .GetByIdAsync(appointment.EmployeeId);
+                .GetEmployeeForUpdateAsync(
+                    appointment.EmployeeId, ct);
 
             if (employee is null)
                 throw new KeyNotFoundException(
@@ -177,6 +177,20 @@ public class CreateAppointmentRescheduleCommandHandler
                 newStartUtc,
                 newEndUtc,
                 appointments);
+            
+        // Validar conflictos de horario de la mascota
+        var petAppointments = await _unitOfWork
+            .Repository<AppointmentEntity>()
+            .FindAsync(x =>
+                x.Id != appointment.Id &&
+                x.PetId == appointment.PetId &&
+                x.StartAt < newEndUtc &&
+                x.EndAt > newStartUtc);
+
+        AppointmentRules.ValidatePetConflicts(
+            newStartUtc,
+            newEndUtc,
+            petAppointments);
 
             // 11. Calcular vencimiento del pago
 

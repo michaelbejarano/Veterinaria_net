@@ -172,8 +172,8 @@ public class PayAppointmentRescheduleCommandHandler
             // 10. Verificar trabajador
 
             var employee = await _unitOfWork
-                .Repository<EmployeeEntity>()
-                .GetByIdAsync(appointment.EmployeeId);
+                .GetEmployeeForUpdateAsync(
+                    appointment.EmployeeId, ct);
 
             if (employee is null || !employee.IsActive)
                 throw new ArgumentException(
@@ -242,10 +242,19 @@ public class PayAppointmentRescheduleCommandHandler
                     x.StartAt < newEndUtc &&
                     x.EndAt > newStartUtc);
 
-            AppointmentRules.ValidateAppointmentConflicts(
+            // 14.1. Verificar conflictos de horario de la mascota
+            var petAppointments = await _unitOfWork
+                .Repository<AppointmentEntity>()
+                .FindAsync(x =>
+                    x.Id != appointment.Id &&
+                    x.PetId == appointment.PetId &&
+                    x.StartAt < newEndUtc &&
+                    x.EndAt > newStartUtc);
+
+            AppointmentRules.ValidatePetConflicts(
                 newStartUtc,
                 newEndUtc,
-                appointments);
+                petAppointments);
 
             // 15. Verificar nuevamente el vencimiento
 

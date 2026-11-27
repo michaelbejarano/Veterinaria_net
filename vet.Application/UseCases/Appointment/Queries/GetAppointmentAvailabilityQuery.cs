@@ -5,6 +5,7 @@ using vet.Domain.Services;
 
 using AppointmentEntity = vet.Domain.Entities.Appointment;
 using EmployeeEntity = vet.Domain.Entities.Employee;
+using PetEntity = vet.Domain.Entities.Pet;
 using ServiceEntity = vet.Domain.Entities.Service;
 using EmployeeServiceEntity = vet.Domain.Entities.EmployeeService;
 using EmployeeScheduleEntity = vet.Domain.Entities.EmployeeSchedule;
@@ -16,13 +17,18 @@ public class GetAppointmentAvailabilityQuery
     : IRequest<List<AvailableAppointmentSlot>>
 {
     public long EmployeeId { get; set; }
-    public long ServiceId { get; set; }
+
+    public long? PetId { get; set; }
+
+    public List<long> ServiceIds { get; set; } = new();
+
     public DateOnly Date { get; set; }
 }
 
 public class AvailableAppointmentSlot
 {
     public DateTimeOffset StartAt { get; set; }
+
     public DateTimeOffset EndAt { get; set; }
 }
 
@@ -42,6 +48,26 @@ public class GetAppointmentAvailabilityQueryHandler
         GetAppointmentAvailabilityQuery request,
         CancellationToken cancellationToken)
     {
+        // 1. Validar identificadores
+        if (request.EmployeeId <= 0)
+            throw new ArgumentException(
+                "El trabajador es obligatorio.");
+
+        if (request.ServiceIds is null ||
+            request.ServiceIds.Count == 0)
+            throw new ArgumentException(
+                "Debe seleccionar al menos un servicio.");
+
+        if (request.ServiceIds.Any(id => id <= 0))
+            throw new ArgumentException(
+                "Uno o más servicios son inválidos.");
+
+        if (request.ServiceIds.Distinct().Count() !=
+            request.ServiceIds.Count)
+            throw new ArgumentException(
+                "No puede repetir servicios.");
+
+        // 2. Validar trabajador
         var employee = await _unitOfWork
             .Repository<EmployeeEntity>()
             .GetByIdAsync(request.EmployeeId);
@@ -50,31 +76,79 @@ public class GetAppointmentAvailabilityQueryHandler
             throw new ArgumentException(
                 "El trabajador no existe o está inactivo.");
 
-        var service = await _unitOfWork
+        // 3. Validar mascota cuando fue seleccionada
+        if (request.PetId.HasValue)
+        {
+            if (request.PetId.Value <= 0)
+                throw new ArgumentException(
+                    "La mascota es inválida.");
+
+            var pet = await _unitOfWork
+                .Repository<PetEntity>()
+                .GetByIdAsync(request.PetId.Value);
+
+            if (pet is null || !pet.IsActive)
+                throw new ArgumentException(
+                    "La mascota no existe o está inactiva.");
+        }
+
+        // 4. Obtener servicios seleccionados
+        var services = (await _unitOfWork
             .Repository<ServiceEntity>()
-            .GetByIdAsync(request.ServiceId);
+            .FindAsync(s =>
+                request.ServiceIds.Contains(s.Id)))
+            .ToList();
 
-        if (service is null || !service.IsActive)
+        if (services.Count != request.ServiceIds.Count)
             throw new ArgumentException(
-                "El servicio no existe o está inactivo.");
+                "Uno o más servicios no existen.");
 
-        if (service.DurationMinutes <= 0)
-            throw new ArgumentException(
-                "La duración del servicio debe ser mayor que cero.");
-
-        var assignments = await _unitOfWork
+        // 5. Obtener asignaciones del trabajador
+        var assignments = (await _unitOfWork
             .Repository<EmployeeServiceEntity>()
             .FindAsync(x =>
                 x.EmployeeId == request.EmployeeId &&
-                x.ServiceId == request.ServiceId &&
-                x.IsEnabled);
+                x.IsEnabled &&
+                request.ServiceIds.Contains(x.ServiceId)))
+            .ToList();
 
-        if (!assignments.Any())
-            throw new ArgumentException(
-                "El trabajador no tiene asignado este servicio.");
+        foreach (var service in services)
+        {
+            if (!service.IsActive)
+                throw new ArgumentException(
+                    $"El servicio '{service.Name}' está inactivo.");
 
-        var peruZone = TimeZoneInfo.FindSystemTimeZoneById(
-            "America/Lima");
+            if (service.DurationMinutes <= 0)
+                throw new ArgumentException(
+                    $"El servicio '{service.Name}' tiene una duración inválida.");
+
+            if (!assignments.Any(x =>
+                    x.ServiceId == service.Id))
+                throw new ArgumentException(
+                    $"El trabajador no tiene asignado el servicio '{service.Name}'.");
+
+            if (service.IsClinical &&
+                employee.Type != "VETERINARIAN")
+                throw new ArgumentException(
+                    $"El servicio '{service.Name}' requiere un veterinario.");
+        }
+
+        // 6. Calcular duración total
+        var requiredMinutes = services.Sum(
+            s => s.DurationMinutes);
+
+        // 7. Configurar zona horaria de Perú
+        var peruZone =
+            TimeZoneInfo.FindSystemTimeZoneById(
+                "America/Lima");
+
+        var nowUtc = DateTime.UtcNow;
+
+        var localNow = TimeZoneInfo.ConvertTimeFromUtc(
+            nowUtc, peruZone);
+
+        if (request.Date < DateOnly.FromDateTime(localNow))
+            return new List<AvailableAppointmentSlot>();
 
         var localDay = request.Date.ToDateTime(
             TimeOnly.MinValue);
@@ -92,6 +166,7 @@ public class GetAppointmentAvailabilityQueryHandler
                 ? 7
                 : (int)localDay.DayOfWeek);
 
+        // 8. Obtener horarios laborales
         var schedules = (await _unitOfWork
             .Repository<EmployeeScheduleEntity>()
             .FindAsync(x =>
@@ -100,7 +175,8 @@ public class GetAppointmentAvailabilityQueryHandler
             .OrderBy(x => x.StartAt)
             .ToList();
 
-        var appointments = (await _unitOfWork
+        // 9. Obtener citas del trabajador
+        var employeeAppointments = (await _unitOfWork
             .Repository<AppointmentEntity>()
             .FindAsync(x =>
                 x.EmployeeId == request.EmployeeId &&
@@ -110,6 +186,25 @@ public class GetAppointmentAvailabilityQueryHandler
                 x.EndAt > dayStartUtc))
             .ToList();
 
+        // 10. Obtener citas de la mascota
+        var petAppointments = new List<AppointmentEntity>();
+
+        if (request.PetId.HasValue)
+        {
+            var petId = request.PetId.Value;
+
+            petAppointments = (await _unitOfWork
+                .Repository<AppointmentEntity>()
+                .FindAsync(x =>
+                    x.PetId == petId &&
+                    x.Status != "CANCELLED" &&
+                    x.Status != "EXPIRED" &&
+                    x.StartAt < dayEndUtc &&
+                    x.EndAt > dayStartUtc))
+                .ToList();
+        }
+
+        // 11. Obtener bloqueos de agenda
         var blocks = (await _unitOfWork
             .Repository<ScheduleBlockEntity>()
             .FindAsync(x =>
@@ -118,8 +213,8 @@ public class GetAppointmentAvailabilityQueryHandler
                 x.EndAt > dayStartUtc))
             .ToList();
 
+        // 12. Generar horarios disponibles
         var result = new List<AvailableAppointmentSlot>();
-        var nowUtc = DateTime.UtcNow;
 
         foreach (var schedule in schedules)
         {
@@ -129,11 +224,13 @@ public class GetAppointmentAvailabilityQueryHandler
             var shiftEnd = request.Date.ToDateTime(
                 schedule.EndAt);
 
-            while (slotStart.AddMinutes(
-                       service.DurationMinutes) <= shiftEnd)
+            while (slotStart.AddMinutes(requiredMinutes)
+                   <= shiftEnd)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 var slotEnd = slotStart.AddMinutes(
-                    service.DurationMinutes);
+                    requiredMinutes);
 
                 var startUtc = TimeZoneInfo.ConvertTimeToUtc(
                     slotStart, peruZone);
@@ -141,18 +238,35 @@ public class GetAppointmentAvailabilityQueryHandler
                 var endUtc = TimeZoneInfo.ConvertTimeToUtc(
                     slotEnd, peruZone);
 
-                var appointmentConflict = appointments.Any(a =>
-                    AppointmentRules.Overlaps(
-                        startUtc, endUtc,
-                        a.StartAt, a.EndAt));
+                // Conflictos del trabajador
+                var employeeConflict =
+                    employeeAppointments.Any(a =>
+                        AppointmentRules.Overlaps(
+                            startUtc,
+                            endUtc,
+                            a.StartAt,
+                            a.EndAt));
 
+                // Conflictos de la mascota
+                var petConflict =
+                    petAppointments.Any(a =>
+                        AppointmentRules.Overlaps(
+                            startUtc,
+                            endUtc,
+                            a.StartAt,
+                            a.EndAt));
+
+                // Bloqueos de agenda
                 var blockConflict = blocks.Any(b =>
                     AppointmentRules.Overlaps(
-                        startUtc, endUtc,
-                        b.StartAt, b.EndAt));
+                        startUtc,
+                        endUtc,
+                        b.StartAt,
+                        b.EndAt));
 
-                if (startUtc > nowUtc &&
-                    !appointmentConflict &&
+                if (startUtc > DateTime.UtcNow &&
+                    !employeeConflict &&
+                    !petConflict &&
                     !blockConflict)
                 {
                     result.Add(new AvailableAppointmentSlot
@@ -167,10 +281,15 @@ public class GetAppointmentAvailabilityQueryHandler
                     });
                 }
 
-                slotStart = slotEnd;
+                // Avanzar 15 minutos, no la duración del servicio
+                slotStart = slotStart.AddMinutes(
+                    AppointmentRules.SlotIntervalMinutes);
             }
         }
 
-        return result;
+        return result
+            .DistinctBy(x => x.StartAt)
+            .OrderBy(x => x.StartAt)
+            .ToList();
     }
 }

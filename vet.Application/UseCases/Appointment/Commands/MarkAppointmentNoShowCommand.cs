@@ -104,7 +104,7 @@ public class MarkAppointmentNoShowCommandHandler
                     AppointmentRules.ValidateDepositForfeiture(
                         payment.Amount,
                         forfeitures.Any(),
-                        applications.Any() ? payment.Amount : 0m);
+                        applications.Sum(a => a.Amount));
 
                     var forfeiture = new DepositForfeitureEntity
                     {
@@ -121,17 +121,26 @@ public class MarkAppointmentNoShowCommandHandler
 
                     forfeitedDeposit += payment.Amount;
                 }
+// 5. Finalizar reprogramaciones pendientes
 
-                // 5. Finalizar reprogramaciones pendientes
+                var reschedules = (await _unitOfWork
+                        .Repository<RescheduleEntity>()
+                        .FindAsync(r =>
+                            r.AppointmentId == appointment.Id &&
+                            r.Status == "PENDING_PAYMENT"))
+                    .OrderBy(r => r.Id)
+                    .ToList();
 
-                var reschedules = await _unitOfWork
-                    .Repository<RescheduleEntity>()
-                    .FindAsync(r =>
-                        r.AppointmentId == appointment.Id &&
-                        r.Status == "PENDING_PAYMENT");
-
-                foreach (var reschedule in reschedules)
+                foreach (var pending in reschedules)
                 {
+                    var reschedule = await _unitOfWork
+                        .GetRescheduleForUpdateAsync(
+                            pending.Id, ct);
+
+                    if (reschedule is null ||
+                        reschedule.Status != "PENDING_PAYMENT")
+                        continue;
+
                     reschedule.Status =
                         AppointmentRules.ShouldExpire(
                             reschedule.Status,
@@ -140,7 +149,6 @@ public class MarkAppointmentNoShowCommandHandler
                             ? "EXPIRED"
                             : "CANCELLED";
                 }
-
                 // 6. Actualizar estado de cita
 
                 appointment.Status = "NO_SHOW";

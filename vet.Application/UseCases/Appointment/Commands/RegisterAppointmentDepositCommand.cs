@@ -2,10 +2,9 @@
 using MediatR;
 using vet.Domain.Ports;
 using vet.Domain.Services;
-using AppointmentEntity = vet.Domain.Entities.Appointment;
+
 using PaymentEntity = vet.Domain.Entities.Payment;
 using CashMovementEntity = vet.Domain.Entities.CashMovement;
-using CashSessionEntity = vet.Domain.Entities.CashSession;
 
 namespace vet.Application.UseCases.Appointment.Commands;
 
@@ -29,104 +28,131 @@ public class RegisterAppointmentDepositCommandHandler
         _unitOfWork = unitOfWork;
     }
 
-public async Task<long> Handle(
-    RegisterAppointmentDepositCommand request,
-    CancellationToken cancellationToken)
-{
-    long paymentId = 0;
-
-    await _unitOfWork.ExecuteInTransactionAsync(async ct =>
+    public async Task<long> Handle(
+        RegisterAppointmentDepositCommand request,
+        CancellationToken cancellationToken)
     {
-        // 1. Bloquear la cita dentro de la transacción
-        var appointment = await _unitOfWork
-            .GetAppointmentForUpdateAsync(request.AppointmentId, ct);
+        // 1. Validar identificadores
+        if (request.AppointmentId <= 0)
+            throw new ArgumentException(
+                "La cita es obligatoria.");
 
-        if (appointment is null)
-            throw new KeyNotFoundException("La cita no existe.");
+        if (request.CashSessionId <= 0)
+            throw new ArgumentException(
+                "La sesión de caja es obligatoria.");
 
-        // 2. Verificar la sesión de caja
-        var cashSession = await _unitOfWork
-            .Repository<CashSessionEntity>()
-            .GetByIdAsync(request.CashSessionId);
+        long paymentId = 0;
 
-        if (cashSession is null)
-            throw new KeyNotFoundException(
-                "La sesión de caja no existe.");
+        await _unitOfWork.ExecuteInTransactionAsync(
+            async ct =>
+            {
+                // 2. Bloquear la cita
+                var appointment = await _unitOfWork
+                    .GetAppointmentForUpdateAsync(
+                        request.AppointmentId, ct);
 
-        AppointmentRules.ValidateOpenCashSession(
-            cashSession.Status);
+                if (appointment is null)
+                    throw new KeyNotFoundException(
+                        "La cita no existe.");
 
-        // 3. Validar el método de pago
-        var method = request.Method?.Trim().ToUpperInvariant()
-            ?? string.Empty;
+                // 3. Bloquear la sesión de caja
+                var cashSession = await _unitOfWork
+                    .GetCashSessionForUpdateAsync(
+                        request.CashSessionId, ct);
 
-        AppointmentRules.ValidatePaymentMethod(method);
+                if (cashSession is null)
+                    throw new KeyNotFoundException(
+                        "La sesión de caja no existe.");
 
-        // 4. Consultar pagos confirmados de la cita
-        var payments = await _unitOfWork
-            .Repository<PaymentEntity>()
-            .FindAsync(p =>
-                p.AppointmentId == appointment.Id &&
-                p.Status == "CONFIRMED");
+                AppointmentRules.ValidateOpenCashSession(
+                    cashSession.Status);
 
-        var hasConfirmedPayment = payments.Any();
+                // 4. Validar método de pago
+                var method = request.Method?
+                    .Trim()
+                    .ToUpperInvariant()
+                    ?? string.Empty;
 
-        // 5. Validar las reglas del adelanto
-        AppointmentRules.ValidateDepositPayment(
-            appointment.Status,
-            appointment.RequiredDeposit,
-            request.Amount,
-            hasConfirmedPayment);
-        //valdimao el vencimiento 15 m r que no hayan transcurrido los 15 minutos
+                AppointmentRules.ValidatePaymentMethod(
+                    method);
 
-        AppointmentRules.ValidatePaymentExpiration(
-            appointment.PaymentExpiresAt,
-            DateTime.UtcNow);
+                // 5. Buscar pagos confirmados
+                var payments = await _unitOfWork
+                    .Repository<PaymentEntity>()
+                    .FindAsync(p =>
+                        p.AppointmentId == appointment.Id &&
+                        p.Status == "CONFIRMED");
 
-        // 6. Crear el pago
-        var payment = new PaymentEntity
-        {
-            AppointmentId = appointment.Id,
-            CashSessionId = cashSession.Id,
-            Amount = request.Amount,
-            Method = method,
-            Reference = request.Reference,
-            Date = DateTime.UtcNow,
-            Status = "CONFIRMED"
-        };
+                // 6. Validar adelanto
+                AppointmentRules.ValidateDepositPayment(
+                    appointment.Status,
+                    appointment.RequiredDeposit,
+                    request.Amount,
+                    payments.Any());
 
-        // 7. Crear movimiento de caja
-        var movement = new CashMovementEntity
-        {
-            CashSessionId = cashSession.Id,
-            Type = "INCOME",
-            Category = "PAYMENT",
-            Method = method,
-            Amount = request.Amount,
-            Reference = request.Reference,
-            Description = $"Adelanto de cita #{appointment.Id}",
-            Date = DateTime.UtcNow,
-            Payment = payment
-        };
+                // 7. Validar vencimiento del pago
+                var now = DateTime.UtcNow;
 
-        // 8. Confirmar la cita
-        appointment.Status = "CONFIRMED";
+                AppointmentRules.ValidatePaymentExpiration(
+                    appointment.PaymentExpiresAt,
+                    now);
 
-        // 9. Registrar entidades
-        await _unitOfWork.Repository<PaymentEntity>()
-            .AddAsync(payment);
+                // 8. Validar que la cita no haya comenzado
+                if (now >= appointment.StartAt)
+                    throw new ArgumentException(
+                        "No se puede registrar el adelanto porque la hora de inicio de la cita ya llegó.");
 
-        await _unitOfWork.Repository<CashMovementEntity>()
-            .AddAsync(movement);
+                var reference =
+                    string.IsNullOrWhiteSpace(request.Reference)
+                        ? null
+                        : request.Reference.Trim();
 
-        // 10. Guardar para obtener el ID generado
-        await _unitOfWork.SaveChangesAsync(ct);
+                // 9. Crear pago
+                var payment = new PaymentEntity
+                {
+                    AppointmentId = appointment.Id,
+                    CashSessionId = cashSession.Id,
+                    Amount = request.Amount,
+                    Method = method,
+                    Reference = reference,
+                    Date = now,
+                    Status = "CONFIRMED"
+                };
 
-        paymentId = payment.Id;
+                // 10. Crear movimiento de caja
+                var movement = new CashMovementEntity
+                {
+                    CashSessionId = cashSession.Id,
+                    Type = "INCOME",
+                    Category = "PAYMENT",
+                    Method = method,
+                    Amount = request.Amount,
+                    Reference = reference,
+                    Description =
+                        $"Adelanto de cita #{appointment.Id}",
+                    Date = now,
+                    Payment = payment
+                };
 
-    }, cancellationToken);
+                // 11. Confirmar cita
+                appointment.Status = "CONFIRMED";
 
-    return paymentId;
-}
+                // 12. Registrar entidades
+                await _unitOfWork
+                    .Repository<PaymentEntity>()
+                    .AddAsync(payment);
 
+                await _unitOfWork
+                    .Repository<CashMovementEntity>()
+                    .AddAsync(movement);
+
+                // 13. Guardar cambios
+                await _unitOfWork.SaveChangesAsync(ct);
+
+                paymentId = payment.Id;
+
+            }, cancellationToken);
+
+        return paymentId;
+    }
 }

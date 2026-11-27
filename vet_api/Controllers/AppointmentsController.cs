@@ -56,19 +56,20 @@ public class AppointmentsController : ControllerBase
 
         return Ok(appointment);
     }
-
     [HttpGet("availability")]
     public async Task<IActionResult> GetAvailability(
         [FromQuery] long employeeId,
-        [FromQuery] long serviceId,
-        [FromQuery] DateOnly date)
+        [FromQuery] List<long> serviceIds,
+        [FromQuery] DateOnly date,
+        [FromQuery] long? petId = null)
     {
         var result = await _mediator.Send(
             new GetAppointmentAvailabilityQuery
             {
                 EmployeeId = employeeId,
-                ServiceId = serviceId,
-                Date = date
+                ServiceIds = serviceIds,
+                Date = date,
+                PetId = petId
             });
 
         return Ok(result);

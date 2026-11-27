@@ -5,7 +5,6 @@ using vet.Domain.Services;
 
 using AppointmentEntity = vet.Domain.Entities.Appointment;
 using AppointmentServiceEntity = vet.Domain.Entities.AppointmentService;
-using EmployeeEntity = vet.Domain.Entities.Employee;
 using PetEntity = vet.Domain.Entities.Pet;
 using ServiceEntity = vet.Domain.Entities.Service;
 using EmployeeServiceEntity = vet.Domain.Entities.EmployeeService;
@@ -39,7 +38,16 @@ public class CreateAppointmentCommandHandler
         CreateAppointmentCommand request,
         CancellationToken cancellationToken)
     {
-        // 1. Normalizar las fechas a UTC
+        // 1. Validar identificadores
+        if (request.PetId <= 0)
+            throw new ArgumentException(
+                "La mascota es obligatoria.");
+
+        if (request.EmployeeId <= 0)
+            throw new ArgumentException(
+                "El trabajador es obligatorio.");
+
+        // 2. Normalizar fechas a UTC
         var startUtc = request.StartAt.UtcDateTime;
         var endUtc = request.EndAt.UtcDateTime;
 
@@ -48,174 +56,236 @@ public class CreateAppointmentCommandHandler
             endUtc,
             DateTime.UtcNow);
 
-        // 2. Validar mascota
-        var pet = await _unitOfWork
-            .Repository<PetEntity>()
-            .GetByIdAsync(request.PetId);
-
-        if (pet is null)
-            throw new ArgumentException("La mascota no existe.");
-
-        if (!pet.IsActive)
-            throw new ArgumentException("La mascota está inactiva.");
-
-        // 3. Validar trabajador
-        var employee = await _unitOfWork
-            .Repository<EmployeeEntity>()
-            .GetByIdAsync(request.EmployeeId);
-
-        if (employee is null)
-            throw new ArgumentException("El trabajador no existe.");
-
-        if (!employee.IsActive)
-            throw new ArgumentException("El trabajador está inactivo.");
-
-        // 4. Validar lista de servicios
-        if (request.ServiceIds is null || request.ServiceIds.Count == 0)
+        // 3. Validar servicios solicitados
+        if (request.ServiceIds is null ||
+            request.ServiceIds.Count == 0)
             throw new ArgumentException(
                 "Debe seleccionar al menos un servicio.");
 
-        if (request.ServiceIds.Distinct().Count() != request.ServiceIds.Count)
+        if (request.ServiceIds.Any(id => id <= 0))
+            throw new ArgumentException(
+                "Uno o más servicios son inválidos.");
+
+        if (request.ServiceIds.Distinct().Count() !=
+            request.ServiceIds.Count)
             throw new ArgumentException(
                 "No puede repetir un servicio en la misma cita.");
 
-        // 5. Buscar servicios y asignaciones del trabajador
-        var services = (await _unitOfWork
-            .Repository<ServiceEntity>()
-            .FindAsync(x => request.ServiceIds.Contains(x.Id)))
-            .ToList();
+        long appointmentId = 0;
 
-        if (services.Count != request.ServiceIds.Count)
-            throw new ArgumentException(
-                "Uno o más servicios no existen.");
+        // 4. Ejecutar reserva dentro de una transacción
+        await _unitOfWork.ExecuteInTransactionAsync(
+            async ct =>
+            {
+                // 5. Obtener y bloquear trabajador
+                var employee = await _unitOfWork
+                    .GetEmployeeForUpdateAsync(
+                        request.EmployeeId, ct);
 
-        var assignments = (await _unitOfWork
-            .Repository<EmployeeServiceEntity>()
-            .FindAsync(x =>
-                x.EmployeeId == request.EmployeeId &&
-                x.IsEnabled &&
-                request.ServiceIds.Contains(x.ServiceId)))
-            .ToList();
+                if (employee is null)
+                    throw new ArgumentException(
+                        "El trabajador no existe.");
 
-        foreach (var service in services)
-        {
-            if (!service.IsActive)
-                throw new ArgumentException(
-                    $"El servicio '{service.Name}' está inactivo.");
+                if (!employee.IsActive)
+                    throw new ArgumentException(
+                        "El trabajador está inactivo.");
 
-            if (!assignments.Any(x => x.ServiceId == service.Id))
-                throw new ArgumentException(
-                    $"El trabajador no tiene asignado el servicio '{service.Name}'.");
-        }
-        
-        var requiredMinutes = services.Sum(
-            service => service.DurationMinutes);
+                // 6. Validar mascota
+                var pet = await _unitOfWork
+                    .Repository<PetEntity>()
+                    .GetByIdAsync(request.PetId);
 
-        AppointmentRules.ValidateDuration(
-            startUtc,
-            endUtc,
-            requiredMinutes);
+                if (pet is null)
+                    throw new ArgumentException(
+                        "La mascota no existe.");
 
+                if (!pet.IsActive)
+                    throw new ArgumentException(
+                        "La mascota está inactiva.");
 
-        // 6. Convertir a hora local de Perú
-        var peruTimeZone = TimeZoneInfo.FindSystemTimeZoneById(
-            "America/Lima");
+                // 7. Obtener servicios
+                var services = (await _unitOfWork
+                    .Repository<ServiceEntity>()
+                    .FindAsync(s =>
+                        request.ServiceIds.Contains(s.Id)))
+                    .ToList();
 
-        var localStart = TimeZoneInfo.ConvertTimeFromUtc(
-            startUtc, peruTimeZone);
+                if (services.Count != request.ServiceIds.Count)
+                    throw new ArgumentException(
+                        "Uno o más servicios no existen.");
 
-        var localEnd = TimeZoneInfo.ConvertTimeFromUtc(
-            endUtc, peruTimeZone);
+                // 8. Obtener asignaciones del trabajador
+                var assignments = (await _unitOfWork
+                    .Repository<EmployeeServiceEntity>()
+                    .FindAsync(x =>
+                        x.EmployeeId == request.EmployeeId &&
+                        x.IsEnabled &&
+                        request.ServiceIds.Contains(x.ServiceId)))
+                    .ToList();
 
-        short weekday = (short)(
-            localStart.DayOfWeek == DayOfWeek.Sunday
-                ? 7
-                : (int)localStart.DayOfWeek);
-
-        // 7. Verificar horario laboral
-        var schedules = await _unitOfWork
-            .Repository<EmployeeScheduleEntity>()
-            .FindAsync(x => x.EmployeeId == request.EmployeeId);
-
-        AppointmentRules.ValidateWorkingHours(
-            localStart,
-            localEnd,
-            schedules,
-            weekday);
-        AppointmentRules.ValidateSlotAlignment(
-            localStart,
-            localEnd,
-            schedules,
-            weekday,
-            requiredMinutes);
-
-        // 8. Verificar bloqueos
-        var blocks = await _unitOfWork
-            .Repository<ScheduleBlockEntity>()
-            .FindAsync(x =>
-                x.EmployeeId == request.EmployeeId &&
-                x.StartAt < endUtc &&
-                x.EndAt > startUtc);
-
-        AppointmentRules.ValidateScheduleBlocks(
-            startUtc,
-            endUtc,
-            blocks);
-
-        // 9. Verificar citas existentes
-        var appointments = await _unitOfWork
-            .Repository<AppointmentEntity>()
-            .FindAsync(x =>
-                x.EmployeeId == request.EmployeeId &&
-                x.StartAt < endUtc &&
-                x.EndAt > startUtc);
-
-        AppointmentRules.ValidateAppointmentConflicts(
-            startUtc,
-            endUtc,
-            appointments);
-
-        // 10. Calcular precio y adelanto
-        var reservedPrice = services.Sum(x => x.BasePrice);
-
-        var requiredDeposit =
-            AppointmentRules.CalculateRequiredDeposit(reservedPrice);
-        // Calcular el vencimiento del pago (15 minutos)
-        var createdAt = DateTime.UtcNow;
-
-        var paymentExpiresAt =
-            AppointmentRules.CalculatePaymentExpiration(createdAt);
-
-        // 11. Construir la cita y sus servicios
-        var appointment = new AppointmentEntity
-        {
-            PetId = request.PetId,
-            EmployeeId = request.EmployeeId,
-            StartAt = startUtc,
-            EndAt = endUtc,
-            Status = "PENDING_PAYMENT",
-            ReservedPrice = reservedPrice,
-            DepositPercent = AppointmentRules.DepositPercent,
-            RequiredDeposit = requiredDeposit,
-            PaymentExpiresAt = paymentExpiresAt,
-            CreatedAt = createdAt,
-
-            AppointmentServices = services
-                .Select(service => new AppointmentServiceEntity
+                foreach (var service in services)
                 {
-                    ServiceId = service.Id,
-                    AgreedPrice = service.BasePrice
-                })
-                .ToList()
-        };
+                    if (!service.IsActive)
+                        throw new ArgumentException(
+                            $"El servicio '{service.Name}' está inactivo.");
 
-        // 12. Guardar cita y servicios juntos
-        await _unitOfWork
-            .Repository<AppointmentEntity>()
-            .AddAsync(appointment);
+                    if (!assignments.Any(x =>
+                            x.ServiceId == service.Id))
+                        throw new ArgumentException(
+                            $"El trabajador no tiene asignado el servicio '{service.Name}'.");
 
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+                    if (service.IsClinical &&
+                        employee.Type != "VETERINARIAN")
+                        throw new ArgumentException(
+                            $"El servicio '{service.Name}' requiere un veterinario.");
+                }
 
-        return appointment.Id;
+                // 9. Calcular duración total
+                var requiredMinutes = services.Sum(
+                    s => s.DurationMinutes);
+
+                AppointmentRules.ValidateDuration(
+                    startUtc,
+                    endUtc,
+                    requiredMinutes);
+
+                // 10. Convertir a hora local de Perú
+                var peruTimeZone =
+                    TimeZoneInfo.FindSystemTimeZoneById(
+                        "America/Lima");
+
+                var localStart =
+                    TimeZoneInfo.ConvertTimeFromUtc(
+                        startUtc, peruTimeZone);
+
+                var localEnd =
+                    TimeZoneInfo.ConvertTimeFromUtc(
+                        endUtc, peruTimeZone);
+
+                short weekday = (short)(
+                    localStart.DayOfWeek == DayOfWeek.Sunday
+                        ? 7
+                        : (int)localStart.DayOfWeek);
+
+                // 11. Validar horario laboral
+                var schedules = (await _unitOfWork
+                    .Repository<EmployeeScheduleEntity>()
+                    .FindAsync(x =>
+                        x.EmployeeId == request.EmployeeId))
+                    .ToList();
+
+                AppointmentRules.ValidateWorkingHours(
+                    localStart,
+                    localEnd,
+                    schedules,
+                    weekday);
+
+                // 12. Validar intervalos de 15 minutos
+                AppointmentRules.ValidateSlotAlignment(
+                    localStart,
+                    localEnd,
+                    schedules,
+                    weekday,
+                    requiredMinutes);
+
+                // 13. Validar bloqueos de agenda
+                var blocks = await _unitOfWork
+                    .Repository<ScheduleBlockEntity>()
+                    .FindAsync(x =>
+                        x.EmployeeId == request.EmployeeId &&
+                        x.StartAt < endUtc &&
+                        x.EndAt > startUtc);
+
+                AppointmentRules.ValidateScheduleBlocks(
+                    startUtc,
+                    endUtc,
+                    blocks);
+
+                // 14. Validar disponibilidad del trabajador
+                var employeeAppointments = await _unitOfWork
+                    .Repository<AppointmentEntity>()
+                    .FindAsync(x =>
+                        x.EmployeeId == request.EmployeeId &&
+                        x.StartAt < endUtc &&
+                        x.EndAt > startUtc);
+
+                AppointmentRules.ValidateAppointmentConflicts(
+                    startUtc,
+                    endUtc,
+                    employeeAppointments);
+
+                // 15. Validar disponibilidad de la mascota
+                var petAppointments = await _unitOfWork
+                    .Repository<AppointmentEntity>()
+                    .FindAsync(x =>
+                        x.PetId == request.PetId &&
+                        x.StartAt < endUtc &&
+                        x.EndAt > startUtc);
+
+                AppointmentRules.ValidatePetConflicts(
+                    startUtc,
+                    endUtc,
+                    petAppointments);
+
+                // 16. Calcular precio y adelanto
+                var reservedPrice = services.Sum(
+                    x => x.BasePrice);
+
+                var requiredDeposit =
+                    AppointmentRules.CalculateRequiredDeposit(
+                        reservedPrice);
+
+                var createdAt = DateTime.UtcNow;
+
+                // Verificar que el horario siga siendo futuro
+                AppointmentRules.ValidateDates(
+                    startUtc,
+                    endUtc,
+                    createdAt);
+
+                var paymentExpiresAt =
+                    AppointmentRules.CalculatePaymentExpiration(createdAt);
+
+                if (paymentExpiresAt > startUtc)
+                {
+                    paymentExpiresAt = startUtc;
+                }
+
+                // 17. Construir la cita
+                var appointment = new AppointmentEntity
+                {
+                    PetId = request.PetId,
+                    EmployeeId = request.EmployeeId,
+                    StartAt = startUtc,
+                    EndAt = endUtc,
+                    Status = "PENDING_PAYMENT",
+                    ReservedPrice = reservedPrice,
+                    DepositPercent = AppointmentRules.DepositPercent,
+                    RequiredDeposit = requiredDeposit,
+                    PaymentExpiresAt = paymentExpiresAt,
+                    CreatedAt = createdAt,
+
+                    AppointmentServices = services
+                        .Select(service =>
+                            new AppointmentServiceEntity
+                            {
+                                ServiceId = service.Id,
+                                AgreedPrice = service.BasePrice
+                            })
+                        .ToList()
+                };
+
+                // 18. Guardar cita y servicios
+                await _unitOfWork
+                    .Repository<AppointmentEntity>()
+                    .AddAsync(appointment);
+
+                await _unitOfWork.SaveChangesAsync(ct);
+
+                appointmentId = appointment.Id;
+
+            }, cancellationToken);
+
+        return appointmentId;
     }
 }

@@ -1,3 +1,4 @@
+
 using MediatR;
 using vet.Domain.Ports;
 using vet.Domain.Services;
@@ -21,54 +22,78 @@ public class ExpirePendingAppointmentsCommandHandler
         _unitOfWork = unitOfWork;
     }
 
-    
     public async Task<int> Handle(
         ExpirePendingAppointmentsCommand request,
         CancellationToken cancellationToken)
     {
         var nowUtc = DateTime.UtcNow;
 
-        // Buscar únicamente las citas cuyo plazo terminó
+        // 1. Buscar citas pendientes que deben expirar
         var appointments = await _unitOfWork
             .Repository<AppointmentEntity>()
             .FindAsync(x =>
                 x.Status == "PENDING_PAYMENT" &&
-                x.PaymentExpiresAt != null &&
-                x.PaymentExpiresAt <= nowUtc);
+                (
+                    (x.PaymentExpiresAt != null &&
+                     x.PaymentExpiresAt <= nowUtc)
+                    ||
+                    x.StartAt <= nowUtc
+                ));
 
         int expiredCount = 0;
 
+        // 2. Procesar cada cita dentro de una transacción
         foreach (var candidate in appointments)
         {
-            await _unitOfWork.ExecuteInTransactionAsync(async ct =>
-            {
-                // Bloquear la cita y consultar su estado actualizado
-                var appointment = await _unitOfWork
-                    .GetAppointmentForUpdateAsync(candidate.Id, ct);
+            bool wasExpired = false;
 
-                if (appointment is null)
-                    return;
+            await _unitOfWork.ExecuteInTransactionAsync(
+                async ct =>
+                {
+                    // 3. Bloquear la cita
+                    var appointment = await _unitOfWork
+                        .GetAppointmentForUpdateAsync(
+                            candidate.Id, ct);
 
-                // Recalcular la hora después de adquirir el bloqueo
-                var currentUtc = DateTime.UtcNow;
+                    if (appointment is null)
+                        return;
 
-                if (!AppointmentRules.ShouldExpire(
+                    // 4. Verificar estado actualizado
+                    if (appointment.Status != "PENDING_PAYMENT")
+                        return;
+
+                    // 5. Obtener hora actual
+                    var currentUtc = DateTime.UtcNow;
+
+                    // 6. Validar vencimiento del pago
+                    var hasExpired = AppointmentRules.ShouldExpire(
                         appointment.Status,
                         appointment.PaymentExpiresAt,
-                        currentUtc))
-                    return;
+                        currentUtc);
 
-                appointment.Status = "EXPIRED";
+                    // 7. Validar hora de inicio
+                    var hasReachedStart =
+                        appointment.StartAt <= currentUtc;
 
-                await _unitOfWork.SaveChangesAsync(ct);
+                    // 8. Conservar la reserva si sigue vigente
+                    if (!hasExpired && !hasReachedStart)
+                        return;
 
+                    // 9. Expirar la cita
+                    appointment.Status = "EXPIRED";
+
+                    // 10. Guardar cambios
+                    await _unitOfWork.SaveChangesAsync(ct);
+
+                    wasExpired = true;
+
+                }, cancellationToken);
+
+            // 11. Contabilizar después de confirmar la transacción
+            if (wasExpired)
                 expiredCount++;
-
-            }, cancellationToken);
         }
 
         return expiredCount;
-    
-
     }
 }

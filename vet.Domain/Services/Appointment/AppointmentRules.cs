@@ -6,6 +6,7 @@ namespace vet.Domain.Services;
 public static class AppointmentRules
 {
     public const decimal DepositPercent = 30m;
+    public const int SlotIntervalMinutes = 15;
 
     public static void ValidateDates(
         DateTime startAt,
@@ -86,6 +87,24 @@ public static class AppointmentRules
             throw new ArgumentException(
                 "El trabajador ya tiene una cita en ese horario.");
     }
+    public static void ValidatePetAppointmentConflicts(
+        DateTime startAt,
+        DateTime endAt,
+        IEnumerable<Appointment> appointments)
+    {
+        var hasConflict = appointments.Any(a =>
+            a.Status != "CANCELLED" &&
+            a.Status != "EXPIRED" &&
+            Overlaps(
+                startAt,
+                endAt,
+                a.StartAt,
+                a.EndAt));
+
+        if (hasConflict)
+            throw new ArgumentException(
+                "La mascota ya tiene una cita en ese horario.");
+    }
 
     public static decimal CalculateRequiredDeposit(
         decimal reservedPrice)
@@ -116,7 +135,6 @@ public static class AppointmentRules
                 $"La cita debe durar exactamente {requiredMinutes} minutos.");
     }
     
-    
     public static void ValidateSlotAlignment(
         DateTime localStart,
         DateTime localEnd,
@@ -124,9 +142,10 @@ public static class AppointmentRules
         short weekday,
         int requiredMinutes)
     {
-        if (requiredMinutes <= 0)
-            throw new ArgumentException(
-                "La duración debe ser mayor que cero.");
+        ValidateDuration(
+            localStart,
+            localEnd,
+            requiredMinutes);
 
         var validSlot = schedules
             .Where(s => s.Weekday == weekday)
@@ -145,14 +164,14 @@ public static class AppointmentRules
                 var elapsed = localStart - shiftStart;
 
                 return elapsed.Ticks %
-                    TimeSpan.FromMinutes(requiredMinutes).Ticks == 0;
+                    TimeSpan.FromMinutes(
+                        SlotIntervalMinutes).Ticks == 0;
             });
 
         if (!validSlot)
             throw new ArgumentException(
                 "La hora seleccionada no corresponde a un bloque disponible.");
     }
-    
 
     public static void ValidateCancellation(string status)
     {
@@ -309,6 +328,24 @@ public static class AppointmentRules
         if (appliedAmount > 0)
             throw new ArgumentException(
                 "No se puede retener un adelanto aplicado a una venta.");
+    }
+    public static void ValidatePetConflicts(
+        DateTime startAt,
+        DateTime endAt,
+        IEnumerable<Appointment> appointments)
+    {
+        var hasConflict = appointments.Any(a =>
+            a.Status != "CANCELLED" &&
+            a.Status != "EXPIRED" &&
+            Overlaps(
+                startAt,
+                endAt,
+                a.StartAt,
+                a.EndAt));
+
+        if (hasConflict)
+            throw new ArgumentException(
+                "La mascota ya tiene una cita en ese horario.");
     }
 
 }

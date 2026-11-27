@@ -18,6 +18,7 @@ public class EmployeeServicesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
     [ProducesResponseType(
         StatusCodes.Status201Created)]
     public async Task<IActionResult> Assign(
@@ -64,6 +65,7 @@ public class EmployeeServicesController : ControllerBase
     }
 
     [HttpPatch("{id:long}/disable")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
     public async Task<IActionResult> Disable(long id)
     {
         var disabled = await _mediator.Send(
