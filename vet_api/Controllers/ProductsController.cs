@@ -101,4 +101,23 @@ public class ProductsController : ControllerBase
             message = "Producto desactivado correctamente."
         });
     }
+    
+    [HttpPatch("{id:long}/activate")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    public async Task<IActionResult> Activate(
+        long id,
+        CancellationToken cancellationToken)
+    {
+        await _mediator.Send(
+            new ActivateProductCommand
+            {
+                Id = id
+            },
+            cancellationToken);
+
+        return Ok(new
+        {
+            message = "Producto reactivado correctamente."
+        });
+    }
 }
