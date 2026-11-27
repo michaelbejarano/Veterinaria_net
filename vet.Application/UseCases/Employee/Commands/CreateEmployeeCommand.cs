@@ -51,7 +51,9 @@ public class CreateEmployeeCommandHandler(
             request.FirstNames,
             request.LastNames,
             request.Type,
-            request.MonthlySalary);
+            request.MonthlySalary,
+            request.DocumentNumber,
+            request.Phone);
 
         // 3. Verificar usuario vinculado
         if (request.UserId.HasValue)

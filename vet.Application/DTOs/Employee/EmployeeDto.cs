@@ -16,5 +16,7 @@ public class EmployeeDto
     public string? LicenseNumber { get; set; }
     public string? Specialty { get; set; }
 
+    public decimal? MonthlySalary { get; set; }
+
     public bool IsActive { get; set; }
 }

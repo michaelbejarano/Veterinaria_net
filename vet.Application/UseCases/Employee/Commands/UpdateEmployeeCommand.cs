@@ -77,8 +77,9 @@ public class UpdateEmployeeCommandHandler(
             request.FirstNames,
             request.LastNames,
             request.Type,
-            request.MonthlySalary
-        );
+            request.MonthlySalary,
+            request.DocumentNumber,
+            request.Phone);
 
         // ========================================
         // 4. VALIDAR USUARIO VINCULADO

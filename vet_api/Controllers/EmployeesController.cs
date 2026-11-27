@@ -5,6 +5,7 @@ using vet.Application.UseCases.Employee.Querys;
 using vet.Application.UseCases.Employee.Commands;
 using vet.Application.UseCases.Employee.Commands;
 namespace vet_api.Controllers;
+using vet.Application.UseCases.Employee.Commands;
 
 [ApiController]
 [Route("api/employees")]
@@ -116,6 +117,48 @@ public class EmployeesController(IMediator mediator)
         }
 
         return NoContent();
+    }
+    // =========================================
+// REACTIVAR TRABAJADOR
+// =========================================
+
+    [HttpPatch("{id:long}/activate")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
+    public async Task<IActionResult> Activate(long id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest(new
+            {
+                message = "El ID del empleado debe ser mayor a cero."
+            });
+        }
+
+        try
+        {
+            var activated = await mediator.Send(
+                new ActivateEmployeeCommand
+                {
+                    Id = id
+                });
+
+            if (!activated)
+            {
+                return NotFound(new
+                {
+                    message = "Empleado no encontrado."
+                });
+            }
+
+            return NoContent();
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return StatusCode(403, new
+            {
+                message = ex.Message
+            });
+        }
     }
 
 
