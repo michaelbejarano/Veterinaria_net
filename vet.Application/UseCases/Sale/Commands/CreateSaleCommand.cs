@@ -2,10 +2,13 @@
 using MediatR;
 using vet.Domain.Entities;
 using vet.Domain.Ports;
-using vet.Domain.Services;
 using vet.Domain.Services.Sale;
 
 namespace vet.Application.UseCases.Sale.Commands;
+
+// ========================================
+// COMMAND
+// ========================================
 
 public class CreateSaleCommand : IRequest<CreateSaleResponse>
 {
@@ -20,6 +23,10 @@ public class CreateSaleCommand : IRequest<CreateSaleResponse>
     public List<CreateSaleItemRequest> Items { get; set; } = new();
 }
 
+// ========================================
+// DETALLES DE LA VENTA
+// ========================================
+
 public class CreateSaleItemRequest
 {
     public long? ProductId { get; set; }
@@ -29,6 +36,10 @@ public class CreateSaleItemRequest
     public decimal Quantity { get; set; }
 }
 
+// ========================================
+// RESPONSE
+// ========================================
+
 public class CreateSaleResponse
 {
     public long SaleId { get; set; }
@@ -37,6 +48,10 @@ public class CreateSaleResponse
 
     public string Status { get; set; } = string.Empty;
 }
+
+// ========================================
+// HANDLER
+// ========================================
 
 public class CreateSaleCommandHandler
     : IRequestHandler<CreateSaleCommand, CreateSaleResponse>
@@ -52,6 +67,19 @@ public class CreateSaleCommandHandler
         CreateSaleCommand request,
         CancellationToken cancellationToken)
     {
+        // ========================================
+        // 1. VALIDACIONES INICIALES
+        // ========================================
+
+        if (request.CompanyId <= 0)
+            throw new ArgumentException(
+                "La empresa es obligatoria.");
+
+        if (request.AppointmentId.HasValue &&
+            request.AppointmentId.Value <= 0)
+            throw new ArgumentException(
+                "La cita indicada no es válida.");
+
         if (request.Items == null)
             throw new ArgumentException(
                 "Los detalles son obligatorios.");
@@ -65,7 +93,10 @@ public class CreateSaleCommandHandler
         await _unitOfWork.ExecuteInTransactionAsync(
             async ct =>
             {
-                // 1. Validar empresa
+                // ========================================
+                // 2. VALIDAR EMPRESA
+                // ========================================
+
                 var company = await _unitOfWork
                     .Repository<Company>()
                     .GetByIdAsync(request.CompanyId);
@@ -74,7 +105,10 @@ public class CreateSaleCommandHandler
                     throw new ArgumentException(
                         "La empresa no existe.");
 
-                // 2. Validar propietario
+                // ========================================
+                // 3. VALIDAR PROPIETARIO
+                // ========================================
+
                 var owner = await _unitOfWork
                     .Repository<Domain.Entities.Owner>()
                     .GetByIdAsync(request.OwnerId);
@@ -83,7 +117,10 @@ public class CreateSaleCommandHandler
                     throw new ArgumentException(
                         "El propietario no existe.");
 
-                // 3. Validar cita cuando corresponda
+                // ========================================
+                // 4. VALIDAR CITA ASOCIADA
+                // ========================================
+
                 if (request.AppointmentId.HasValue)
                 {
                     var appointment = await _unitOfWork
@@ -95,6 +132,9 @@ public class CreateSaleCommandHandler
                         throw new ArgumentException(
                             "La cita no existe.");
 
+                    SaleRules.ValidateAppointmentStatus(
+                        appointment.Status);
+
                     var pet = await _unitOfWork
                         .Repository<Domain.Entities.Pet>()
                         .GetByIdAsync(appointment.PetId);
@@ -105,16 +145,12 @@ public class CreateSaleCommandHandler
                         throw new ArgumentException(
                             "La cita no pertenece al propietario.");
                     }
-
-                    if (appointment.Status is
-                        "CANCELADA" or "EXPIRADA" or "NO_ASISTIO")
-                    {
-                        throw new ArgumentException(
-                            "La cita no permite registrar una venta.");
-                    }
                 }
 
-                // 4. Preparar detalles de la venta
+                // ========================================
+                // 5. PREPARAR DETALLES
+                // ========================================
+
                 var saleItems = new List<SaleItem>();
 
                 var registeredServices = new HashSet<long>();
@@ -124,6 +160,7 @@ public class CreateSaleCommandHandler
                 foreach (var item in request.Items)
                 {
                     bool isProduct = item.ProductId.HasValue;
+
                     bool isService = item.VisitServiceId.HasValue;
 
                     if (isProduct == isService)
@@ -141,30 +178,47 @@ public class CreateSaleCommandHandler
                         Igv = 0
                     };
 
-                    // 5. Preparar producto
+                    // ========================================
+                    // 6. PREPARAR PRODUCTO
+                    // ========================================
+
                     if (isProduct)
                     {
+                        if (item.ProductId!.Value <= 0)
+                            throw new ArgumentException(
+                                "El producto indicado no es válido.");
+
                         var product = await _unitOfWork
                             .Repository<Domain.Entities.Product>()
-                            .GetByIdAsync(item.ProductId!.Value);
+                            .GetByIdAsync(item.ProductId.Value);
 
                         if (product == null || !product.IsActive)
                             throw new ArgumentException(
                                 "El producto no existe o está inactivo.");
 
                         saleItem.ProductId = product.Id;
+
                         saleItem.Description = product.Name;
+
                         saleItem.UnitPrice = product.SalePrice;
                     }
+
+                    // ========================================
+                    // 7. PREPARAR SERVICIO REALIZADO
+                    // ========================================
+
                     else
                     {
-                        // 6. Preparar servicio realizado
                         if (item.Quantity != 1)
                             throw new ArgumentException(
                                 "La cantidad de un servicio realizado debe ser uno.");
 
                         long visitServiceId =
                             item.VisitServiceId!.Value;
+
+                        if (visitServiceId <= 0)
+                            throw new ArgumentException(
+                                "El servicio indicado no es válido.");
 
                         if (!registeredServices.Add(visitServiceId))
                             throw new ArgumentException(
@@ -182,6 +236,8 @@ public class CreateSaleCommandHandler
                             throw new ArgumentException(
                                 "El servicio todavía no está completado.");
 
+                        // Validar atención
+
                         var visit = await _unitOfWork
                             .Repository<Visit>()
                             .GetByIdAsync(visitService.VisitId);
@@ -189,6 +245,8 @@ public class CreateSaleCommandHandler
                         if (visit == null)
                             throw new ArgumentException(
                                 "La atención no existe.");
+
+                        // Validar propietario de la mascota
 
                         var pet = await _unitOfWork
                             .Repository<Domain.Entities.Pet>()
@@ -201,9 +259,13 @@ public class CreateSaleCommandHandler
                                 "El servicio no pertenece al propietario.");
                         }
 
+                        // Validar cita de la atención
+
                         if (visit.AppointmentId != request.AppointmentId)
                             throw new ArgumentException(
                                 "El servicio no corresponde a la cita indicada.");
+
+                        // Evitar servicios duplicados
 
                         var existingItems = await _unitOfWork
                             .Repository<SaleItem>()
@@ -214,6 +276,8 @@ public class CreateSaleCommandHandler
                             throw new ArgumentException(
                                 "El servicio ya está asociado a una venta.");
 
+                        // Obtener información del servicio
+
                         var service = await _unitOfWork
                             .Repository<Domain.Entities.Service>()
                             .GetByIdAsync(visitService.ServiceId);
@@ -223,11 +287,16 @@ public class CreateSaleCommandHandler
                                 "El servicio no existe.");
 
                         saleItem.VisitServiceId = visitService.Id;
+
                         saleItem.Description = service.Name;
+
                         saleItem.UnitPrice = visitService.FinalPrice;
                     }
 
-                    // 7. Calcular importe
+                    // ========================================
+                    // 8. CALCULAR IMPORTE
+                    // ========================================
+
                     total += SaleRules.CalculateItemTotal(
                         saleItem.Quantity,
                         saleItem.UnitPrice,
@@ -237,15 +306,26 @@ public class CreateSaleCommandHandler
                     saleItems.Add(saleItem);
                 }
 
-                // 8. Crear venta
+                // ========================================
+                // 9. CREAR VENTA ABIERTA
+                // ========================================
+
                 var sale = new Domain.Entities.Sale
                 {
                     CompanyId = request.CompanyId,
+
                     OwnerId = request.OwnerId,
+
                     AppointmentId = request.AppointmentId,
+
                     Date = DateTime.UtcNow,
+
                     Status = "OPEN",
-                    Notes = request.Notes,
+
+                    Notes = string.IsNullOrWhiteSpace(request.Notes)
+                        ? null
+                        : request.Notes.Trim(),
+
                     SaleItems = saleItems
                 };
 
@@ -255,11 +335,16 @@ public class CreateSaleCommandHandler
 
                 await _unitOfWork.SaveChangesAsync(ct);
 
-                // 9. Preparar respuesta
+                // ========================================
+                // 10. PREPARAR RESPUESTA
+                // ========================================
+
                 response = new CreateSaleResponse
                 {
                     SaleId = sale.Id,
+
                     Total = total,
+
                     Status = sale.Status
                 };
             },

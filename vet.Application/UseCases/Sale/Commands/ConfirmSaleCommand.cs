@@ -1,13 +1,18 @@
+
 using MediatR;
 using vet.Domain.Entities;
 using vet.Domain.Ports;
-using vet.Domain.Services;
 using vet.Domain.Services.Inventory;
 using vet.Domain.Services.Sale;
 
 namespace vet.Application.UseCases.Sale.Commands;
 
-public class ConfirmSaleCommand : IRequest<ConfirmSaleResponse>
+// ========================================
+// COMMAND
+// ========================================
+
+public class ConfirmSaleCommand
+    : IRequest<ConfirmSaleResponse>
 {
     public long SaleId { get; set; }
 
@@ -17,6 +22,10 @@ public class ConfirmSaleCommand : IRequest<ConfirmSaleResponse>
 
     public string? PaymentReference { get; set; }
 }
+
+// ========================================
+// RESPONSE
+// ========================================
 
 public class ConfirmSaleResponse
 {
@@ -33,6 +42,10 @@ public class ConfirmSaleResponse
     public string Status { get; set; } = string.Empty;
 }
 
+// ========================================
+// HANDLER
+// ========================================
+
 public class ConfirmSaleCommandHandler
     : IRequestHandler<ConfirmSaleCommand, ConfirmSaleResponse>
 {
@@ -47,13 +60,32 @@ public class ConfirmSaleCommandHandler
         ConfirmSaleCommand request,
         CancellationToken cancellationToken)
     {
+        // ========================================
+        // 1. VALIDACIONES INICIALES
+        // ========================================
+
         if (request.SaleId <= 0)
-            throw new ArgumentException("La venta es obligatoria.");
+            throw new ArgumentException(
+                "La venta es obligatoria.");
 
         if (request.CashSessionId <= 0)
-            throw new ArgumentException("La sesión de caja es obligatoria.");
+            throw new ArgumentException(
+                "La sesión de caja es obligatoria.");
 
-        SaleRules.ValidatePaymentMethod(request.PaymentMethod);
+        var paymentMethod = request.PaymentMethod?
+            .Trim()
+            .ToUpperInvariant() ?? string.Empty;
+
+        SaleRules.ValidatePaymentMethod(paymentMethod);
+
+        var paymentReference =
+            string.IsNullOrWhiteSpace(request.PaymentReference)
+                ? null
+                : request.PaymentReference.Trim();
+
+        if (paymentReference is { Length: > 120 })
+            throw new ArgumentException(
+                "La referencia no puede superar los 120 caracteres.");
 
         ConfirmSaleResponse? response = null;
 
@@ -61,8 +93,9 @@ public class ConfirmSaleCommandHandler
             async ct =>
             {
                 // ========================================
-                // 1. CONSULTAR VENTA
+                // 2. CONSULTAR VENTA INICIAL
                 // ========================================
+
                 var initialSales = await _unitOfWork
                     .Repository<Domain.Entities.Sale>()
                     .FindAsync(s => s.Id == request.SaleId);
@@ -70,11 +103,13 @@ public class ConfirmSaleCommandHandler
                 var initialSale = initialSales.SingleOrDefault();
 
                 if (initialSale == null)
-                    throw new ArgumentException("La venta no existe.");
+                    throw new KeyNotFoundException(
+                        "La venta no existe.");
 
                 // ========================================
-                // 2. BLOQUEAR CITA ASOCIADA
+                // 3. BLOQUEAR Y VALIDAR CITA
                 // ========================================
+
                 if (initialSale.AppointmentId.HasValue)
                 {
                     var appointment = await _unitOfWork
@@ -83,37 +118,66 @@ public class ConfirmSaleCommandHandler
                             ct);
 
                     if (appointment == null)
-                        throw new ArgumentException("La cita no existe.");
+                        throw new KeyNotFoundException(
+                            "La cita no existe.");
+
+                    SaleRules.ValidateAppointmentStatus(
+                        appointment.Status);
                 }
 
                 // ========================================
-                // 3. BLOQUEAR Y VALIDAR VENTA
+                // 4. BLOQUEAR Y VALIDAR VENTA
                 // ========================================
+
                 var sale = await _unitOfWork
-                    .GetSaleForUpdateAsync(request.SaleId, ct);
+                    .GetSaleForUpdateAsync(
+                        request.SaleId,
+                        ct);
 
                 if (sale == null)
-                    throw new ArgumentException("La venta no existe.");
+                    throw new KeyNotFoundException(
+                        "La venta no existe.");
 
-                SaleRules.ValidateSaleConfirmation(sale.Status);
+                SaleRules.ValidateSaleConfirmation(
+                    sale.Status);
 
                 if (sale.AppointmentId != initialSale.AppointmentId)
                     throw new ArgumentException(
                         "La cita asociada a la venta ha cambiado.");
 
+                // Evitar confirmar una venta con pagos previos.
+
+                var existingPayments = await _unitOfWork
+                    .Repository<Payment>()
+                    .FindAsync(p => p.SaleId == sale.Id);
+
+                if (existingPayments.Any())
+                    throw new ArgumentException(
+                        "La venta ya tiene pagos registrados.");
+
+                var existingApplications = await _unitOfWork
+                    .Repository<DepositApplication>()
+                    .FindAsync(a => a.SaleId == sale.Id);
+
+                if (existingApplications.Any())
+                    throw new ArgumentException(
+                        "La venta ya tiene adelantos aplicados.");
+
                 // ========================================
-                // 4. VALIDAR SESIÓN DE CAJA
+                // 5. BLOQUEAR Y VALIDAR CAJA
                 // ========================================
+
                 var cashSession = await _unitOfWork
                     .GetCashSessionForUpdateAsync(
                         request.CashSessionId,
                         ct);
 
                 if (cashSession == null)
-                    throw new ArgumentException(
+                    throw new KeyNotFoundException(
                         "La sesión de caja no existe.");
 
-                SaleRules.ValidateCashSession(cashSession.Status);
+                SaleRules.ValidateCashSession(
+                    cashSession.Status);
 
                 var cashRegister = await _unitOfWork
                     .Repository<Domain.Entities.CashRegister>()
@@ -128,8 +192,9 @@ public class ConfirmSaleCommandHandler
                     cashRegister.CompanyId);
 
                 // ========================================
-                // 5. OBTENER DETALLES Y CALCULAR TOTAL
+                // 6. OBTENER DETALLES Y CALCULAR TOTAL
                 // ========================================
+
                 var saleItems = (await _unitOfWork
                     .Repository<SaleItem>()
                     .FindAsync(i => i.SaleId == sale.Id))
@@ -147,8 +212,9 @@ public class ConfirmSaleCommandHandler
                         item.Igv));
 
                 // ========================================
-                // 6. VALIDAR SERVICIOS
+                // 7. VALIDAR SERVICIOS REALIZADOS
                 // ========================================
+
                 foreach (var item in saleItems
                     .Where(i => i.VisitServiceId.HasValue))
                 {
@@ -162,11 +228,31 @@ public class ConfirmSaleCommandHandler
                         throw new ArgumentException(
                             "La venta contiene un servicio no completado.");
                     }
+
+                    var visit = await _unitOfWork
+                        .Repository<Visit>()
+                        .GetByIdAsync(visitService.VisitId);
+
+                    if (visit == null ||
+                        visit.AppointmentId != sale.AppointmentId)
+                    {
+                        throw new ArgumentException(
+                            "El servicio no corresponde a la atención de la venta.");
+                    }
+
+                    var pet = await _unitOfWork
+                        .Repository<Domain.Entities.Pet>()
+                        .GetByIdAsync(visit.PetId);
+
+                    if (pet == null || pet.OwnerId != sale.OwnerId)
+                        throw new ArgumentException(
+                            "El servicio no pertenece al propietario.");
                 }
 
                 // ========================================
-                // 7. OBTENER PRODUCTOS Y LOTES
+                // 8. VALIDAR PRODUCTOS
                 // ========================================
+
                 var productIds = saleItems
                     .Where(i => i.ProductId.HasValue)
                     .Select(i => i.ProductId!.Value)
@@ -184,6 +270,10 @@ public class ConfirmSaleCommandHandler
                             $"El producto {productId} no está disponible.");
                 }
 
+                // ========================================
+                // 9. BLOQUEAR LOTES DE INVENTARIO
+                // ========================================
+
                 var today = DateOnly.FromDateTime(
                     DateTime.UtcNow.AddHours(-5));
 
@@ -197,15 +287,20 @@ public class ConfirmSaleCommandHandler
                         .FindAsync(b =>
                             productIds.Contains(b.ProductId));
 
-                    // Bloquear siempre en orden ascendente por ID.
+                    // Mantener un orden consistente de bloqueo.
+
                     foreach (var batch in batches.OrderBy(b => b.Id))
                     {
                         var lockedBatch = await _unitOfWork
-                            .GetProductBatchForUpdateAsync(batch.Id, ct);
+                            .GetProductBatchForUpdateAsync(
+                                batch.Id,
+                                ct);
 
                         if (lockedBatch == null)
                             throw new ArgumentException(
                                 "El lote ya no existe.");
+
+                        // Excluir lotes vencidos.
 
                         if (!lockedBatch.ExpiryDate.HasValue ||
                             lockedBatch.ExpiryDate.Value >= today)
@@ -216,8 +311,9 @@ public class ConfirmSaleCommandHandler
                 }
 
                 // ========================================
-                // 8. CALCULAR STOCK DISPONIBLE
+                // 10. CALCULAR STOCK DISPONIBLE
                 // ========================================
+
                 var availableStocks =
                     new Dictionary<long, decimal>();
 
@@ -234,12 +330,15 @@ public class ConfirmSaleCommandHandler
                 }
 
                 // ========================================
-                // 9. REGISTRAR SALIDAS DE INVENTARIO
+                // 11. REGISTRAR SALIDAS DE INVENTARIO
                 // ========================================
+
                 foreach (var item in saleItems
                     .Where(i => i.ProductId.HasValue)
                     .OrderBy(i => i.Id))
                 {
+                    // FEFO: primero los lotes próximos a vencer.
+
                     var productBatches = lockedBatches
                         .Where(b => b.ProductId == item.ProductId)
                         .OrderBy(b =>
@@ -248,7 +347,8 @@ public class ConfirmSaleCommandHandler
                         .ToList();
 
                     decimal availableStock = productBatches
-                        .Sum(b => Math.Max(0, availableStocks[b.Id]));
+                        .Sum(b =>
+                            Math.Max(0, availableStocks[b.Id]));
 
                     SaleRules.ValidateProductQuantity(
                         item.Quantity,
@@ -271,11 +371,17 @@ public class ConfirmSaleCommandHandler
                         var movement = new InventoryMovement
                         {
                             BatchId = batch.Id,
+
                             SaleItemId = item.Id,
+
                             Type = "OUT",
+
                             Quantity = quantityToUse,
+
                             UnitCost = batch.UnitCost,
+
                             Reference = $"VENTA-{sale.Id}",
+
                             Date = DateTime.UtcNow
                         };
 
@@ -290,11 +396,16 @@ public class ConfirmSaleCommandHandler
                         if (remainingQuantity == 0)
                             break;
                     }
+
+                    if (remainingQuantity > 0)
+                        throw new ArgumentException(
+                            "No existe stock suficiente para completar la venta.");
                 }
 
                 // ========================================
-                // 10. APLICAR ADELANTOS DE LA CITA
+                // 12. APLICAR ADELANTOS DISPONIBLES
                 // ========================================
+
                 decimal appliedDeposit = 0;
 
                 if (sale.AppointmentId.HasValue &&
@@ -308,17 +419,22 @@ public class ConfirmSaleCommandHandler
 
                     foreach (var deposit in deposits.OrderBy(p => p.Id))
                     {
+                        // No utilizar adelantos retenidos.
+
                         var forfeitures = await _unitOfWork
                             .Repository<DepositForfeiture>()
-                            .FindAsync(f => f.PaymentId == deposit.Id);
+                            .FindAsync(f =>
+                                f.PaymentId == deposit.Id);
 
-                        // No utilizar adelantos retenidos.
                         if (forfeitures.Any())
                             continue;
 
+                        // Consultar cuánto se utilizó anteriormente.
+
                         var applications = await _unitOfWork
                             .Repository<DepositApplication>()
-                            .FindAsync(a => a.PaymentId == deposit.Id);
+                            .FindAsync(a =>
+                                a.PaymentId == deposit.Id);
 
                         decimal alreadyApplied =
                             applications.Sum(a => a.Amount);
@@ -339,7 +455,9 @@ public class ConfirmSaleCommandHandler
                         var application = new DepositApplication
                         {
                             PaymentId = deposit.Id,
+
                             SaleId = sale.Id,
+
                             Amount = amountToApply
                         };
 
@@ -355,28 +473,38 @@ public class ConfirmSaleCommandHandler
                 }
 
                 // ========================================
-                // 11. CALCULAR SALDO PENDIENTE
+                // 13. CALCULAR SALDO POR COBRAR
                 // ========================================
+
                 decimal amountPaid =
                     SaleRules.CalculateRemainingBalance(
                         total,
                         appliedDeposit);
 
-                long? paymentId = null;
+                Payment? payment = null;
 
                 // ========================================
-                // 12. REGISTRAR PAGO
+                // 14. REGISTRAR NUEVO PAGO
                 // ========================================
+
                 if (amountPaid > 0)
                 {
-                    var payment = new Payment
+                    var paymentDate = DateTime.UtcNow;
+
+                    payment = new Payment
                     {
                         SaleId = sale.Id,
+
                         CashSessionId = cashSession.Id,
-                        Method = request.PaymentMethod,
+
+                        Method = paymentMethod,
+
                         Amount = amountPaid,
-                        Reference = request.PaymentReference,
-                        Date = DateTime.UtcNow,
+
+                        Reference = paymentReference,
+
+                        Date = paymentDate,
+
                         Status = "CONFIRMED"
                     };
 
@@ -384,24 +512,29 @@ public class ConfirmSaleCommandHandler
                         .Repository<Payment>()
                         .AddAsync(payment);
 
-                    await _unitOfWork.SaveChangesAsync(ct);
-
-                    paymentId = payment.Id;
-
                     // ========================================
-                    // 13. REGISTRAR INGRESO EN CAJA
+                    // 15. REGISTRAR INGRESO EN CAJA
                     // ========================================
+
                     var cashMovement = new CashMovement
                     {
                         CashSessionId = cashSession.Id,
-                        PaymentId = payment.Id,
+
+                        Payment = payment,
+
                         Type = "INCOME",
+
                         Category = "PAYMENT",
-                        Method = request.PaymentMethod,
+
+                        Method = paymentMethod,
+
                         Amount = amountPaid,
-                        Reference = request.PaymentReference,
+
+                        Reference = paymentReference,
+
                         Description = $"Cobro de venta #{sale.Id}",
-                        Date = DateTime.UtcNow
+
+                        Date = paymentDate
                     };
 
                     await _unitOfWork
@@ -410,8 +543,9 @@ public class ConfirmSaleCommandHandler
                 }
 
                 // ========================================
-                // 14. CONFIRMAR VENTA
+                // 16. CONFIRMAR VENTA
                 // ========================================
+
                 sale.Status = "CONFIRMED";
 
                 _unitOfWork
@@ -421,15 +555,21 @@ public class ConfirmSaleCommandHandler
                 await _unitOfWork.SaveChangesAsync(ct);
 
                 // ========================================
-                // 15. PREPARAR RESPUESTA
+                // 17. PREPARAR RESPUESTA
                 // ========================================
+
                 response = new ConfirmSaleResponse
                 {
                     SaleId = sale.Id,
-                    PaymentId = paymentId,
+
+                    PaymentId = payment?.Id,
+
                     Total = total,
+
                     AppliedDeposit = appliedDeposit,
+
                     AmountPaid = amountPaid,
+
                     Status = sale.Status
                 };
             },

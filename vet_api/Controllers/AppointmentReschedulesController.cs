@@ -13,14 +13,36 @@ public class AppointmentReschedulesController : ControllerBase
 {
     private readonly IMediator _mediator;
 
-    public AppointmentReschedulesController(IMediator mediator)
+    public AppointmentReschedulesController(
+        IMediator mediator)
     {
         _mediator = mediator;
     }
 
-    // 1. Solicitar reprogramación
+    // 1. Consultar disponibilidad para reprogramar
+
+    [HttpGet("availability/{appointmentId:long}")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
+    public async Task<IActionResult> GetAvailability(
+        long appointmentId,
+        [FromQuery] DateOnly date,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new GetRescheduleAvailabilityQuery
+            {
+                AppointmentId = appointmentId,
+                Date = date
+            },
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    // 2. Solicitar reprogramación
 
     [HttpPost]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
     public async Task<IActionResult> Create(
         [FromBody] CreateAppointmentRescheduleCommand command,
         CancellationToken cancellationToken)
@@ -35,9 +57,10 @@ public class AppointmentReschedulesController : ControllerBase
         });
     }
 
-    // 2. Registrar pago de reprogramación
+    // 3. Registrar pago de reprogramación
 
     [HttpPost("{id:long}/pay")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
     public async Task<IActionResult> Pay(
         long id,
         [FromBody] PayAppointmentRescheduleCommand command,
@@ -55,9 +78,10 @@ public class AppointmentReschedulesController : ControllerBase
         });
     }
 
-    // 3. Cancelar reprogramación
+    // 4. Cancelar reprogramación
 
     [HttpPatch("{id:long}/cancel")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN,RECEPTIONIST")]
     public async Task<IActionResult> Cancel(
         long id,
         CancellationToken cancellationToken)
@@ -75,7 +99,7 @@ public class AppointmentReschedulesController : ControllerBase
         });
     }
 
-    // 4. Consultar historial de reprogramaciones por cita
+    // 5. Consultar historial de reprogramaciones
 
     [HttpGet("appointment/{appointmentId:long}")]
     public async Task<IActionResult> GetByAppointment(
@@ -92,10 +116,10 @@ public class AppointmentReschedulesController : ControllerBase
         return Ok(result);
     }
 
-    // 5. Vencer reprogramaciones manualmente
+    // 6. Vencer reprogramaciones manualmente
 
-    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
     [HttpPost("expire")]
+    [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
     public async Task<IActionResult> Expire(
         CancellationToken cancellationToken)
     {

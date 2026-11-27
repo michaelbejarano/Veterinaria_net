@@ -230,9 +230,7 @@ public class PayAppointmentRescheduleCommandHandler
             AppointmentRules.ValidateScheduleBlocks(
                 newStartUtc,
                 newEndUtc,
-                blocks);
-
-            // 14. Verificar conflictos con otras citas
+                blocks);// 14. Verificar conflictos de horario del trabajador
 
             var appointments = await _unitOfWork
                 .Repository<AppointmentEntity>()
@@ -242,7 +240,13 @@ public class PayAppointmentRescheduleCommandHandler
                     x.StartAt < newEndUtc &&
                     x.EndAt > newStartUtc);
 
-            // 14.1. Verificar conflictos de horario de la mascota
+            AppointmentRules.ValidateAppointmentConflicts(
+                newStartUtc,
+                newEndUtc,
+                appointments);
+
+// 14.1. Verificar conflictos de horario de la mascota
+
             var petAppointments = await _unitOfWork
                 .Repository<AppointmentEntity>()
                 .FindAsync(x =>

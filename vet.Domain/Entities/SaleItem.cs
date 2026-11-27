@@ -23,6 +23,8 @@ public partial class SaleItem
 
     public decimal Igv { get; set; }
 
+    public bool IsReleased { get; set; }
+
     public virtual ICollection<InventoryMovement> InventoryMovements { get; set; } = new List<InventoryMovement>();
 
     public virtual Product? Product { get; set; }

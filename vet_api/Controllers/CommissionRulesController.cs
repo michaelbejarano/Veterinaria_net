@@ -1,57 +1,69 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using vet.Application.UseCases.CommissionRule.Commands;
-using vet.Application.UseCases.CommissionRule.Queries;
+using vet.Application.UseCases.CommissionSettlement.Commands;
+using vet.Application.UseCases.CommissionSettlement.Queries;
 
 namespace vet_api.Controllers;
 
 [ApiController]
-[Route("api/commission-rules")]
+[Route("api/commission-settlements")]
 [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
-public class CommissionRulesController : ControllerBase
+public class CommissionSettlementsController : ControllerBase
 {
     private readonly IMediator _mediator;
 
-    public CommissionRulesController(IMediator mediator)
+    public CommissionSettlementsController(IMediator mediator)
     {
         _mediator = mediator;
     }
 
-    // 1. Crear regla
+    // ========================================
+    // 1. OBTENER COMISIONES PENDIENTES
+    // ========================================
 
-    [HttpPost]
-    public async Task<IActionResult> Create(
-        [FromBody] CreateCommissionRuleCommand command,
+    [HttpGet("pending")]
+    public async Task<IActionResult> GetPending(
+        [FromQuery] long employeeId,
+        [FromQuery] DateOnly? untilDate,
         CancellationToken cancellationToken)
     {
-        var id = await _mediator.Send(
-            command, cancellationToken);
-
-        return CreatedAtAction(
-            nameof(GetById),
-            new { id },
-            new
+        if (employeeId <= 0)
+            return BadRequest(new
             {
-                id,
-                message = "Regla de comisión creada correctamente."
+                message = "El trabajador es obligatorio."
             });
-    }
 
-    // 2. Obtener todas las reglas
-
-    [HttpGet]
-    public async Task<IActionResult> GetAll(
-        CancellationToken cancellationToken)
-    {
         var result = await _mediator.Send(
-            new GetAllCommissionRulesQuery(),
+            new GetPendingCommissionsQuery
+            {
+                EmployeeId = employeeId,
+                UntilDate = untilDate
+            },
             cancellationToken);
 
         return Ok(result);
     }
 
-    // 3. Obtener regla por ID
+    // ========================================
+    // 2. LISTAR LIQUIDACIONES
+    // ========================================
+
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] GetAllCommissionSettlementsQuery query,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            query,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    // ========================================
+    // 3. OBTENER LIQUIDACIÓN POR ID
+    // ========================================
 
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(
@@ -59,7 +71,7 @@ public class CommissionRulesController : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await _mediator.Send(
-            new GetCommissionRuleByIdQuery
+            new GetCommissionSettlementByIdQuery
             {
                 Id = id
             },
@@ -68,56 +80,45 @@ public class CommissionRulesController : ControllerBase
         return Ok(result);
     }
 
-    // 4. Obtener reglas por trabajador-servicio
+    // ========================================
+    // 4. CREAR LIQUIDACIÓN
+    // ========================================
 
-    [HttpGet("employee-service/{employeeServiceId:long}")]
-    public async Task<IActionResult> GetByEmployeeService(
-        long employeeServiceId,
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        [FromBody] CreateCommissionSettlementCommand command,
         CancellationToken cancellationToken)
     {
+        var id = await _mediator.Send(
+            command,
+            cancellationToken);
+
+        return CreatedAtAction(
+            nameof(GetById),
+            new { id },
+            new
+            {
+                id,
+                message = "Liquidación creada correctamente."
+            });
+    }
+
+    // ========================================
+    // 5. PAGAR LIQUIDACIÓN
+    // ========================================
+
+    [HttpPost("{id:long}/pay")]
+    public async Task<IActionResult> Pay(
+        long id,
+        [FromBody] PayCommissionSettlementCommand command,
+        CancellationToken cancellationToken)
+    {
+        command.SettlementId = id;
+
         var result = await _mediator.Send(
-            new GetCommissionRulesByEmployeeServiceQuery
-            {
-                EmployeeServiceId = employeeServiceId
-            },
+            command,
             cancellationToken);
 
         return Ok(result);
-    }
-
-    // 5. Actualizar regla
-
-    [HttpPut("{id:long}")]
-    public async Task<IActionResult> Update(
-        long id,
-        [FromBody] UpdateCommissionRuleCommand command,
-        CancellationToken cancellationToken)
-    {
-        command.Id = id;
-
-        await _mediator.Send(
-            command, cancellationToken);
-
-        return Ok(new
-        {
-            message = "Regla de comisión actualizada correctamente."
-        });
-    }
-
-    // 6. Eliminar regla
-
-    [HttpDelete("{id:long}")]
-    public async Task<IActionResult> Delete(
-        long id,
-        CancellationToken cancellationToken)
-    {
-        await _mediator.Send(
-            new DeleteCommissionRuleCommand
-            {
-                Id = id
-            },
-            cancellationToken);
-
-        return NoContent();
     }
 }

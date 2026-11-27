@@ -1,3 +1,4 @@
+
 using vet.Domain.Services.Inventory;
 
 namespace vet.Domain.Services.Sale;
@@ -17,7 +18,16 @@ public static class SaleRules
                 "La venta debe tener al menos un producto o servicio.");
     }
 
-    public static void ValidatePaymentMethod(string paymentMethod)
+    public static void ValidateAppointmentStatus(
+        string status)
+    {
+        if (status is not ("IN_PROGRESS" or "COMPLETED"))
+            throw new ArgumentException(
+                "La cita debe estar en atención o completada para registrar una venta asociada.");
+    }
+
+    public static void ValidatePaymentMethod(
+        string paymentMethod)
     {
         if (paymentMethod is not
             ("CASH" or "YAPE" or "PLIN" or "CARD" or "BANK_TRANSFER"))
@@ -43,7 +53,6 @@ public static class SaleRules
                 "Debe existir una sesión de caja abierta.");
     }
 
-    // Calcula el importe de un producto o servicio
     public static decimal CalculateItemTotal(
         decimal quantity,
         decimal unitPrice,
@@ -68,7 +77,6 @@ public static class SaleRules
             MidpointRounding.AwayFromZero);
     }
 
-    // Calcula cuánto falta pagar después del adelanto
     public static decimal CalculateRemainingBalance(
         decimal total,
         decimal appliedDeposit)
@@ -81,13 +89,13 @@ public static class SaleRules
 
         return total - appliedDeposit;
     }
-    public static void ValidateSaleConfirmation(string status)
+
+    public static void ValidateSaleConfirmation(
+        string status)
     {
         if (status != "OPEN")
-        {
             throw new ArgumentException(
                 "Solo se pueden confirmar ventas abiertas.");
-        }
     }
 
     public static void ValidateCompany(
@@ -95,21 +103,20 @@ public static class SaleRules
         long cashRegisterCompanyId)
     {
         if (saleCompanyId != cashRegisterCompanyId)
-        {
             throw new ArgumentException(
                 "La caja no pertenece a la empresa de la venta.");
-        }
     }
-    public static void ValidateReceiptIssuance(string status)
+
+    public static void ValidateReceiptIssuance(
+        string status)
     {
         if (status != "CONFIRMED")
-        {
             throw new ArgumentException(
                 "Solo se pueden emitir recibos de ventas confirmadas.");
-        }
     }
-    
-    public static void ValidateSaleCancellation(string status)
+
+    public static void ValidateSaleCancellation(
+        string status)
     {
         if (status != "OPEN")
             throw new ArgumentException(

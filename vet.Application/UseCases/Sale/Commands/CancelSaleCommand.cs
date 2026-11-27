@@ -1,3 +1,4 @@
+
 using MediatR;
 using vet.Domain.Ports;
 using vet.Domain.Services.Sale;
@@ -13,6 +14,7 @@ namespace vet.Application.UseCases.Sale.Commands;
 public class CancelSaleCommand : IRequest<bool>
 {
     public long SaleId { get; set; }
+
     public string Reason { get; set; } = string.Empty;
 }
 
@@ -30,6 +32,8 @@ public class CancelSaleCommandHandler
         CancelSaleCommand request,
         CancellationToken cancellationToken)
     {
+        // 1. Validar solicitud
+
         if (request.SaleId <= 0)
             throw new ArgumentException(
                 "La venta es obligatoria.");
@@ -38,83 +42,100 @@ public class CancelSaleCommandHandler
             throw new ArgumentException(
                 "Debe indicar el motivo de anulación.");
 
+        var reason = request.Reason.Trim();
+
         await _unitOfWork.ExecuteInTransactionAsync(
             async ct =>
             {
-                // 1. Bloquear venta
+                // 2. Bloquear venta
 
                 var sale = await _unitOfWork
                     .GetSaleForUpdateAsync(
-                        request.SaleId, ct);
+                        request.SaleId,
+                        ct);
 
                 if (sale is null)
                     throw new KeyNotFoundException(
                         "La venta no existe.");
 
+                // 3. Validar estado
+
                 SaleRules.ValidateSaleCancellation(
                     sale.Status);
 
-                // 2. Verificar pagos
+                // 4. Verificar pagos
 
                 var payments = await _unitOfWork
                     .Repository<PaymentEntity>()
-                    .FindAsync(x => x.SaleId == sale.Id);
+                    .FindAsync(p =>
+                        p.SaleId == sale.Id);
 
                 if (payments.Any())
                     throw new ArgumentException(
-                        "La venta tiene pagos registrados.");
+                        "No se puede anular una venta con pagos registrados.");
 
-                // 3. Verificar adelantos aplicados
+                // 5. Verificar adelantos aplicados
 
                 var deposits = await _unitOfWork
                     .Repository<DepositEntity>()
-                    .FindAsync(x => x.SaleId == sale.Id);
+                    .FindAsync(d =>
+                        d.SaleId == sale.Id);
 
                 if (deposits.Any())
                     throw new ArgumentException(
-                        "La venta tiene adelantos aplicados.");
+                        "No se puede anular una venta con adelantos aplicados.");
 
-                // 4. Verificar comprobantes
+                // 6. Verificar comprobantes
 
                 var invoices = await _unitOfWork
                     .Repository<InvoiceEntity>()
-                    .FindAsync(x => x.SaleId == sale.Id);
+                    .FindAsync(i =>
+                        i.SaleId == sale.Id);
 
                 if (invoices.Any())
                     throw new ArgumentException(
-                        "La venta tiene comprobantes asociados.");
+                        "No se puede anular una venta con comprobantes asociados.");
 
-                // 5. Verificar movimientos de inventario
+                // 7. Obtener detalles
 
-                var items = await _unitOfWork
+                var items = (await _unitOfWork
                     .Repository<SaleItemEntity>()
-                    .FindAsync(x => x.SaleId == sale.Id);
+                    .FindAsync(i =>
+                        i.SaleId == sale.Id))
+                    .ToList();
 
-                if (items.Any(x => x.VisitServiceId.HasValue))
+                if (items.Any(i => i.VisitServiceId.HasValue))
                     throw new ArgumentException(
                         "Por ahora solo se pueden anular ventas sin servicios asociados.");
 
+                // 8. Verificar movimientos de inventario
+
                 var itemIds = items
-                    .Select(x => x.Id)
+                    .Select(i => i.Id)
                     .ToList();
 
-                var movements = await _unitOfWork
-                    .Repository<MovementEntity>()
-                    .FindAsync(x =>
-                        x.SaleItemId.HasValue &&
-                        itemIds.Contains(x.SaleItemId.Value));
+                if (itemIds.Count > 0)
+                {
+                    var movements = await _unitOfWork
+                        .Repository<MovementEntity>()
+                        .FindAsync(m =>
+                            m.SaleItemId.HasValue &&
+                            itemIds.Contains(m.SaleItemId.Value));
 
-                if (movements.Any())
-                    throw new ArgumentException(
-                        "La venta tiene movimientos de inventario.");
+                    if (movements.Any())
+                        throw new ArgumentException(
+                            "No se puede anular una venta con movimientos de inventario.");
+                }
 
-                // 6. Anular venta
+                // 9. Anular venta
 
                 sale.Status = "VOIDED";
 
                 sale.Notes =
-                    $"{sale.Notes}\nANULACIÓN: {request.Reason.Trim()}"
+                    $"{sale.Notes}\nANULACIÓN: {reason}"
                         .Trim();
+
+                // 10. Guardar cambios
 
                 await _unitOfWork.SaveChangesAsync(ct);
             },

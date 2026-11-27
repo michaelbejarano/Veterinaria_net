@@ -1,4 +1,3 @@
-
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,6 +21,7 @@ public class SalesController : ControllerBase
     // ========================================
     // 1. CREAR VENTA
     // ========================================
+
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] CreateSaleCommand command,
@@ -40,6 +40,7 @@ public class SalesController : ControllerBase
     // ========================================
     // 2. CONFIRMAR VENTA
     // ========================================
+
     [HttpPost("{id:long}/confirm")]
     public async Task<IActionResult> Confirm(
         long id,
@@ -58,6 +59,7 @@ public class SalesController : ControllerBase
     // ========================================
     // 3. EMITIR RECIBO INTERNO
     // ========================================
+
     [HttpPost("{id:long}/receipt")]
     public async Task<IActionResult> IssueReceipt(
         long id,
@@ -78,6 +80,7 @@ public class SalesController : ControllerBase
     // ========================================
     // 4. LISTAR VENTAS
     // ========================================
+
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] long companyId,
@@ -93,6 +96,7 @@ public class SalesController : ControllerBase
     // ========================================
     // 5. OBTENER VENTA POR ID
     // ========================================
+
     [HttpGet("{id:long}")]
     public async Task<IActionResult> GetById(
         long id,
@@ -104,7 +108,27 @@ public class SalesController : ControllerBase
 
         return Ok(result);
     }
-    
+
+    // ========================================
+    // 6. SERVICIOS DISPONIBLES PARA COBRAR
+    // ========================================
+
+    [HttpGet("billable-services")]
+    public async Task<IActionResult> GetBillableServices(
+        [FromQuery] long ownerId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(
+            new GetBillableServicesQuery(ownerId),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    // ========================================
+    // 7. ANULAR VENTA
+    // ========================================
+
     [HttpPatch("{id:long}/cancel")]
     [Authorize(Roles = "SUPER_ADMIN,ADMIN")]
     public async Task<IActionResult> Cancel(
